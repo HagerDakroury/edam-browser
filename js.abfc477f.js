@@ -61543,2128 +61543,7 @@ function getDarkMode() {
     localStorage.setItem("theme", theme);
   });
 }
-},{"jquery-ui-bundle":"Hifx"}],"kypQ":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.interactive_tree = void 0;
-
-var d3 = _interopRequireWildcard(require("d3"));
-
-var _utils = require("./utils.js");
-
-function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
-
-function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
-
-/**
- * Build an interactive tree
- * @return {object} the tree
- */
-var interactive_tree = function interactive_tree() {
-  var debug = false,
-      margin = {
-    top: 10,
-    right: 50,
-    bottom: 10,
-    left: 80
-  },
-      voidHandler = function voidHandler(name) {
-    return function () {
-      if (debug) console.log(name);
-    };
-  },
-      voidHandlerStrBlank = function voidHandlerStrBlank(name) {
-    return function () {
-      if (debug) console.log(name);
-      return "";
-    };
-  },
-      initiallySelectedElementHandler = voidHandler("initiallySelectedElementHandler"),
-      addingElementHandler = voidHandler("addingElementHandler"),
-      openElementHandler = voidHandler("openElementHandler"),
-      clickedElementHandler = function clickedElementHandler(d) {
-    if (debug) console.log(identifierAccessor(d));
-  },
-      removingElementHandler = voidHandler("removingElementHandler"),
-      loadingDoneHandler = voidHandler("loadingDoneHandler"),
-      metaInformationHandler = voidHandler("metaInformationHandler"),
-      removeElementsWithNoSelectedDescendant = false,
-      additionalCSSClassForNode = voidHandlerStrBlank("additionalCSSClassForNode"),
-      additionalCSSClassForLink = voidHandlerStrBlank("additionalCSSClassForLink"),
-      sortChildren = false,
-      identifierAccessor = function identifierAccessor(d) {
-    return d.data.id;
-  },
-      textAccessor = function textAccessor(d) {
-    if (typeof d.data.text == "undefined") return identifierAccessor(d);
-    if (d.data.text.constructor === Array) return d.data.text[0];
-    return d.data.text;
-  },
-      elementEquality = function elementEquality(e, f) {
-    return identifierAccessor(e) == identifierAccessor(f);
-  },
-      tooltipBuilder = function tooltipBuilder(d, tooltipContainer) {
-    var c = "<div class=\"panel panel-default card\"><div class=\"panel-heading\">" + textAccessor(d) + "</div>" + "<div class=\"panel-body\">" + "Identifier: " + identifierAccessor(d) + "</div></div>";
-    tooltipContainer.html(c);
-  },
-      preTreatmentOfLoadedTree = function preTreatmentOfLoadedTree(tree) {
-    return tree;
-  },
-      tooltipEnabled = false,
-      use_shift_to_open = false,
-      use_control_to_open = true,
-      use_alt_to_open = false,
-      use_shift_to_add = true,
-      use_control_to_add = false,
-      use_alt_to_add = false,
-      target_selector = null,
-      data_url = null,
-      root,
-      treeSelectedElement = [],
-      treeSelectedElementAncestors = null,
-      duration = 500,
-      update,
-      updateWithoutPanAndZoomTuning,
-      minX,
-      minY,
-      maxX,
-      maxY,
-      reset,
-      manualZoom,
-      moveElementsIntoView,
-      id = 0,
-      identifierToElement = {};
-
-  function chart(selection) {
-    selection.each(function () {
-      target_selector = this;
-      var treemap = d3.tree().nodeSize([12, 50]).separation(function (a, b) {
-        var a_count = a.children ? a.children.length : 1;
-        var b_count = b.children ? b.children.length : 1;
-        return (a_count + b_count) / 2 + (a.parent == b.parent ? 0 : 1);
-      });
-      var diagonal = d3.linkHorizontal().x(function (d) {
-        return d.y;
-      }).y(function (d) {
-        return d.x;
-      });
-      var zoom = d3.zoom().on("zoom", function () {
-        var currentTransform = vis.attr("transform") || '';
-        currentTransform = currentTransform.replace("(1)", "(1.0000000)");
-        if (currentTransform.includes((d3.zoomTransform(svg.node()).k.toString() + ".0000000").substring(0, 6))) if (!svg.node().classList.contains("auto-drag")) svg.node().classList.add("dragged-or-moved");
-        vis.attr("transform", d3.event.transform);
-      }).on("end", function () {
-        vis.attr("transform", d3.event.transform);
-        svg.node().classList.remove("dragged-or-moved");
-      });
-      var svg = d3.select(this).append("svg:svg").attr("width", "100%").attr("height", "100%").call(zoom);
-      var vis = svg.append("svg:g");
-      var body = d3.select("body");
-      var tooltip = (body.select("div.tooltip").empty() ? body.append("div") : body.select("div.tooltip")).attr("class", "tooltip").style("opacity", 0).on("mouseover", function (d) {
-        if (tooltip.style("opacity") == 0) return;
-        tooltip.transition().duration(200).style("opacity", 1);
-      }).on("mouseout", function (d) {
-        tooltip.transition().duration(200).style("opacity", 0);
-        tooltip.transition().delay(200).style("top", "-2000px");
-      });
-
-      reset = function reset() {
-        var shift;
-        if (vis.select("g.node").node()) shift = vis.select("g.node").node().getBoundingClientRect().width;else shift = margin.left;
-        var t = d3.zoomIdentity.translate(shift, $(target_selector).height() / 2).scale(1);
-        svg.call(zoom.transform, t);
-      };
-
-      manualZoom = function manualZoom(type) {
-        if (type == 'in') {
-          zoom.scaleBy(svg, 2);
-        } else if (type == 'out') {
-          zoom.scaleBy(svg, 0.5);
-        }
-      };
-
-      moveElementsIntoView = function moveElementsIntoView(elements) {
-        var width = $(target_selector).width();
-        var height = $(target_selector).height();
-        var scale = d3.zoomTransform(svg.node()).k;
-        var x = -elements[0].y0;
-        var y = -elements[0].x0;
-        x = x * scale + width / 2;
-        y = y * scale + height / 2;
-        var t = d3.zoomIdentity.translate(x, y).scale(scale);
-        svg.transition().duration(duration).call(zoom.transform, t).node().classList.add("auto-drag");
-        setTimeout(function () {
-          svg.node().classList.remove("auto-drag");
-        }, duration);
-      };
-
-      update = function update(source) {
-        //getting the box surronding the svg element ()
-        var svgBox = vis.node().getBBox();
-        minX = svgBox.x;
-        minY = svgBox.y;
-        maxX = svgBox.width + svgBox.x;
-        maxY = svgBox.height + svgBox.y;
-        updateWithoutPanAndZoomTuning(source);
-        var xShift = (maxX - minX) / 2;
-        zoom.translateExtent([[minX - xShift, minY - xShift], [maxX + xShift, maxY + xShift]]);
-      };
-
-      updateWithoutPanAndZoomTuning = function updateWithoutPanAndZoomTuning(source) {
-        if (treeSelectedElementAncestors == null) {
-          refreshTreeSelectedElementAncestors();
-        } // Compute the new tree layout.
-
-
-        var treeData = treemap(root);
-        var nodes = treeData.descendants(),
-            links = treeData.descendants().slice(1); // Normalize for fixed-depth.
-
-        nodes.forEach(function (d) {
-          d.y = d.depth * 180;
-        }); // ****************** Nodes section ***************************
-        // Update the nodes…
-
-        var node = vis.selectAll("g.node").data(nodes, function (d) {
-          return d.__d3js_id || (d.__d3js_id = ++id);
-        }); // Enter any new nodes at the parent's previous position.
-
-        var nodeEnter = node.enter().append("svg:g").attr("class", "node").attr("transform", function (d) {
-          return "translate(" + (source.y0 || source.y) + "," + (source.x0 || source.x) + ")";
-        }).on("dblclick", function () {
-          //stop doubleclick zoom effect
-          d3.event.stopPropagation();
-        }).on("click", function (d, i) {
-          handleClick(d);
-        });
-        nodeEnter.append("svg:text").text(textAccessor).style("fill-opacity", 1e-6);
-        nodeEnter.append("svg:text").text(textAccessor).style("fill-opacity", 1e-6);
-        nodeEnter.append("svg:circle").attr("r", 1e-6).attr("class", function (d) {
-          return (d._children || d.children ? "has-children " : " ") + additionalCSSClassForNode(d);
-        }).on("mouseover", function (d) {
-          if (!tooltipEnabled) return;
-          tooltipBuilder(d, tooltip);
-          var parentWidth = body._groups[0][0].clientWidth;
-          var tooltipWidth = tooltip._groups[0][0].clientWidth;
-          var tooltipX = d3.event.layerX + 20;
-          tooltip.interrupt().transition().duration(200).style("opacity", 1); //checking if the tooltip is cropped and moving it to the left
-
-          if (parentWidth < tooltipWidth + tooltipX) {
-            tooltipX = d3.event.layerX - 10 - tooltip._groups[0][0].clientWidth;
-          }
-
-          tooltip.style("left", tooltipX + "px").style("top", d3.event.layerY - 5 + "px");
-        }).on("mouseout", function (d) {
-          tooltip.transition().duration(200).style("opacity", 0);
-          tooltip.transition().delay(200).style("top", "-2000px");
-        }); // UPDATE
-
-        var nodeUpdate = nodeEnter.merge(node); // Transition nodes to their new position.
-
-        nodeUpdate.transition().duration(duration).attr("transform", function (d) {
-          minX = minX ? Math.min(minX, d.y) : d.y;
-          minY = minY ? Math.min(minY, d.x) : d.x;
-          maxX = maxX ? Math.max(maxX, d.y) : d.y;
-          maxY = maxY ? Math.max(maxY, d.x) : d.x;
-          return "translate(" + d.y + "," + d.x + ")";
-        });
-        nodeUpdate.select("circle").attr("r", 4.5).attr("class", function (d) {
-          if (isElementSelected(d, treeSelectedElement)) return "selected " + additionalCSSClassForNode(d);
-          return (d._children || d.children ? "has-children " : " ") + additionalCSSClassForNode(d);
-        });
-        nodeUpdate.selectAll("text").attr("x", function (d) {
-          return d.children ? -10 : 10;
-        }).attr("dy", function (d) {
-          return d.parent && d.children && d.parent.children.length == 1 ? "-0.2em" : ".35em";
-        }).attr("text-anchor", function (d) {
-          return d.children ? "end" : "start";
-        }).style("fill-opacity", '').style("font-size", '').attr("class", function (d) {
-          return isElementSelected(d, treeSelectedElement) ? "selected" : "";
-        }); // Transition exiting nodes to the parent's new position.
-
-        var nodeExit = node.exit().transition().duration(duration).attr("transform", function (d) {
-          return "translate(" + source.y0 + "," + source.x0 + ")";
-        }).remove();
-        nodeExit.select("circle").attr("r", 1e-6);
-        nodeExit.selectAll("text").style("font-size", '1px').style("fill-opacity", 1e-6); // ****************** links section ***************************
-        // Update the links…
-
-        var link = vis.selectAll("path.link").data(links, function (d) {
-          return d.__d3js_id;
-        }); // Transition exiting nodes to the parent's new position.
-        // Enter any new links at the parent's previous position.
-
-        var linkEnter = link.enter().insert("svg:path", "g").attr("data-id", function (d) {
-          return d.__d3js_id;
-        }).attr("d", function (d) {
-          var o = {
-            x: source.x0 || source.x,
-            y: source.y0 || source.y
-          };
-          return diagonal({
-            source: o,
-            target: o
-          });
-        }).attr("class", function (d) {
-          return "link " + additionalCSSClassForLink(d);
-        }); // UPDATE
-
-        var linkUpdate = linkEnter.merge(link); // Transition links to their new position.
-
-        linkUpdate.transition().duration(duration).attr('d', function (d) {
-          return diagonal({
-            source: d,
-            target: d.parent
-          });
-        }).attr("class", function (d) {
-          if ($.inArray(identifierAccessor(d), treeSelectedElementAncestors) > -1) return "link selected " + additionalCSSClassForLink(d);
-          return "link " + additionalCSSClassForLink(d);
-        });
-        var linkExit = link.exit().transition().duration(duration).attr("d", function (d) {
-          var o = {
-            x: source.x,
-            y: source.y
-          };
-          return diagonal({
-            source: o,
-            target: o
-          });
-        }).remove(); // Stash the old positions for transition.
-
-        nodes.forEach(function (d) {
-          d.x0 = d.x;
-          d.y0 = d.y;
-        });
-      }; //end of update(source)
-
-
-      if (data_url != null) {
-        update(root);
-        reset();
-        loadingDoneHandler();
-      }
-    }); //end of selection.each
-  } //end of function chart
-  // Toggle children.
-
-
-  function toggle(d) {
-    if (d.children) {
-      // collapse
-      d._children = d.children;
-      d.children = null;
-    } else {
-      // expand
-      d.children = d._children;
-      d._children = null;
-    }
-  } //end of toggle
-
-
-  function toggleForceExpand(d) {
-    if (d.children) return;
-    toggle(d);
-  } //end of toggleForceExpand
-
-
-  function toggleForceCollapse(d) {
-    if (d._children) return;
-    toggle(d);
-  } //end of toggleForceCollapse
-  //Handle selection of a node
-
-
-  function handleClick(d) {
-    if (d3.event.shiftKey && use_shift_to_open || d3.event.ctrlKey && use_control_to_open || d3.event.altKey && use_alt_to_open) {
-      openElementHandler(d);
-    } else if (d3.event.shiftKey && use_shift_to_add || d3.event.ctrlKey && use_control_to_add || d3.event.altKey && use_alt_to_add) {
-      var pos = treeSelectedElement.indexOf(d);
-
-      if (pos > -1) {
-        //removing ?
-        attemptToRemoveElement(d, pos);
-      } else {
-        //adding ?
-        attemptToSelectElement(d);
-      }
-    } else if (!d3.event.shiftKey && !d3.event.ctrlKey && !d3.event.altKey && d3.event.detail == 1) {
-      chart.cmd.clearSelectedElements(false);
-      toggle(d);
-      clickedElementHandler(d);
-    }
-
-    update(d);
-  } //end of handleClick
-
-
-  function attemptToRemoveElement(d, pos) {
-    if (typeof pos == "undefined" || pos == -1) pos = treeSelectedElement.indexOf(d);
-
-    if (removingElementHandler(d) != false) {
-      treeSelectedElement.splice(pos, 1);
-
-      if (d.duplicate) {
-        for (var i = pos; i < treeSelectedElement.length; i++) {
-          if (elementEquality(treeSelectedElement[i], d)) {
-            treeSelectedElement.splice(i, 1);
-            i--;
-          }
-        }
-      }
-
-      refreshTreeSelectedElementAncestors();
-    }
-  } //end of attemptToRemoveElement
-
-
-  function attemptToSelectElement(d) {
-    if (addingElementHandler(d) != false) {
-      if (d.duplicate) {
-        recursivePush(d, root);
-      } else {
-        treeSelectedElement.push(d);
-      }
-
-      refreshTreeSelectedElementAncestors();
-    }
-  } //end of attemptToSelectElement
-
-
-  function recursivePush(refElement, org) {
-    var i;
-    if (elementEquality(refElement, org)) treeSelectedElement.push(org);
-    if (org.children) for (i = 0; i < org.children.length; i++) {
-      recursivePush(refElement, org.children[i]);
-    }
-    if (org._children) for (i = 0; i < org._children.length; i++) {
-      recursivePush(refElement, org._children[i]);
-    }
-  } //end of recursivePush
-
-
-  function refreshTreeSelectedElementAncestors() {
-    treeSelectedElementAncestors = [];
-    var candidate;
-
-    for (var i = 0; i < treeSelectedElement.length; i++) {
-      candidate = treeSelectedElement[i];
-
-      while (candidate != null
-      /* && treeSelectedElementAncestors.indexOf(identifierAccessor(candidate))==-1*/
-      ) {
-        var id_candidate = identifierAccessor(candidate);
-        if ($.inArray(id_candidate, treeSelectedElementAncestors)) treeSelectedElementAncestors.push(id_candidate);
-        candidate = candidate.parent;
-      }
-    }
-  } //end of refreshTreeSelectedElementAncestors
-
-
-  function parenthood(element, parent) {
-    var node = identifierToElement[identifierAccessor(element)];
-
-    if (typeof node != "undefined") {
-      if (typeof node.duplicate == "undefined") node.duplicate = [node];
-      node.duplicate.push(element);
-      element.duplicate = node.duplicate;
-    } else {
-      identifierToElement[identifierAccessor(element)] = element;
-    }
-
-    element.parent = parent;
-
-    if (element.children) {
-      if (sortChildren) {
-        element.children.sort(function (a, b) {
-          a = textAccessor(a).toUpperCase();
-          b = textAccessor(b).toUpperCase();
-          if (a < b) return -1;
-          if (a > b) return 1;
-          return 0;
-        });
-      }
-
-      for (var i = 0; i < element.children.length; i++) {
-        parenthood(element.children[i], element);
-      }
-    }
-
-    if (initiallySelectedElementHandler(element)) {
-      treeSelectedElement.push(element);
-    }
-  } //end of function parenthood
-
-
-  function shouldRemoveThisElementsAsItHasNoSelectedDescendant(element) {
-    var b = true;
-
-    if (element.children) {
-      for (var i = 0; i < element.children.length; i++) {
-        if (shouldRemoveThisElementsAsItHasNoSelectedDescendant(element.children[i])) {
-          element.children.splice(i, 1);
-          i--;
-        } else {
-          b = false;
-        }
-      }
-
-      if (element.children.length == 0) {
-        element.children = null;
-      }
-    }
-
-    b = b && !initiallySelectedElementHandler(element);
-
-    if (b) {
-      element.children = null;
-      element._children = null;
-    }
-
-    return b;
-  } //end of function shouldRemoveThisElementsAsItHasNoSelectedDescendant
-
-
-  function browseToFromElement(identifier, element, selectedIt, expandToIt) {
-    var b = false;
-
-    if (identifier == identifierAccessor(element)) {
-      if (selectedIt) attemptToSelectElement(element);
-      return true;
-    }
-
-    var ch, i;
-
-    if (element.children) {
-      ch = element.children;
-
-      for (i = 0; i < ch.length; i++) {
-        if (browseToFromElement(identifier, ch[i], selectedIt, expandToIt)) {
-          if (expandToIt) toggleForceExpand(element);
-          b = true; //return true;
-        }
-      }
-    } else if (element._children) {
-      ch = element._children;
-
-      for (i = 0; i < ch.length; i++) {
-        if (browseToFromElement(identifier, ch[i], selectedIt, expandToIt)) {
-          if (expandToIt) toggleForceExpand(element);
-          b = true; //return true;
-        }
-      }
-    }
-
-    return b;
-  } //end of browseToFromElement
-
-
-  function isElementSelected(node) {
-    return $.inArray(node, treeSelectedElement) > -1;
-  } //end of isElementSelected
-
-
-  function collapseNotSelectedElement(node) {
-    var hasSelectedDescendant = false;
-
-    if (node.children) {
-      for (var i = 0; i < node.children.length; i++) {
-        if (collapseNotSelectedElement(node.children[i])) {
-          hasSelectedDescendant = true;
-        }
-      }
-    }
-
-    if (!hasSelectedDescendant) toggleForceCollapse(node);
-    if (isElementSelected(node)) return true;
-    return hasSelectedDescendant;
-  } //end of collapseNotSelectedElement
-
-
-  function expandSelectedElement(node) {
-    var hasSelectedDescendant = false;
-    var i;
-
-    if (node._children) {
-      for (i = 0; i < node._children.length; i++) {
-        if (expandSelectedElement(node._children[i])) {
-          hasSelectedDescendant = true;
-        }
-      }
-    } else if (node.children) {
-      for (i = 0; i < node.children.length; i++) {
-        if (expandSelectedElement(node.children[i])) {
-          hasSelectedDescendant = true;
-        }
-      }
-    }
-
-    if (hasSelectedDescendant) {
-      console.log("Ex:" + node);
-      toggleForceExpand(node);
-    }
-
-    if (isElementSelected(node)) return true;
-    return hasSelectedDescendant;
-  } //end of expandSelectedElement
-
-
-  function expandAllDescendantElement(node) {
-    var i,
-        children = node._children || node.children;
-
-    if (children) {
-      for (i = 0; i < children.length; i++) {
-        expandAllDescendantElement(children[i]);
-      }
-    }
-
-    toggleForceExpand(node);
-  } //end of expandAllElement
-
-
-  function getFartherAncestorCollapsed(node) {
-    var source = node;
-    var pointer = node;
-
-    while (pointer.parent) {
-      if (pointer._children) source = pointer;
-      pointer = pointer.parent;
-    }
-
-    return source;
-  } //end of getFartherAncestorCollapsed
-
-
-  function initTreeAndTriggerUpdate() {
-    treeSelectedElement = [];
-    treeSelectedElementAncestors = [];
-    metaInformationHandler(root.data.meta);
-    root.x0 = 0;
-    root.y0 = 0;
-    parenthood(root, null);
-    refreshTreeSelectedElementAncestors();
-
-    if (removeElementsWithNoSelectedDescendant) {
-      shouldRemoveThisElementsAsItHasNoSelectedDescendant(root);
-    }
-
-    collapseNotSelectedElement(root);
-
-    if (update) {
-      update(root);
-      loadingDoneHandler();
-      reset();
-    }
-  } //accessors
-
-
-  function cmd() {
-    return cmd;
-  }
-  /**
-   * Ask to collapse to element identified by identifier
-   * @param {string} identifier - the element identifier that is returned by identifierAccessor
-   * @return cmd() itself
-   */
-
-
-  cmd.collapseElement = function (identifier) {
-    toggleForceCollapse(identifierToElement[identifier]);
-    update(root);
-    return cmd;
-  };
-  /**
-   * Ask to expand an element
-   * @param {string} identifier - the element identifier that is returned by identifierAccessor
-   * @return cmd() itself
-   */
-
-
-  cmd.expandElement = function (identifier) {
-    var source = getFartherAncestorCollapsed(identifierToElement[identifier]);
-    browseToFromElement(identifier, root, false, true);
-    update(source);
-    return cmd;
-  };
-  /**
-   * Add/remove elements identified by the identifier depending of the boolean status, and expand to selected element(s) when asked
-   * @param {string} identifier - the element identifier that is returned by identifierAccessor
-   * @param {boolean} status - true to add, false to remove
-   * @param {boolean} [andExpand=true] - expand to selected element(s)
-   * @return cmd() itself
-   */
-
-
-  cmd.selectElement = function (identifier, status, andExpand) {
-    var node = identifierToElement[identifier];
-    if (typeof node == "undefined") return cmd;
-    var source = getFartherAncestorCollapsed(node);
-    if (status) browseToFromElement(identifier, root, true, typeof andExpand == "undefined" || andExpand);else attemptToRemoveElement(node);
-    update(source);
-    return cmd;
-  };
-  /**
-   *
-   * @param {string} identifier - the element identifier that is returned by identifierAccessor
-   * @return {boolean} true is the element is selected
-   */
-
-
-  cmd.isElementSelected = function (identifier) {
-    return isElementSelected(identifierToElement[identifier]);
-  };
-  /**
-   * Ask to de-select all elements
-   * @param {boolean} [redraw=true] - redraw the tree
-   * @return cmd() itself
-   */
-
-
-  cmd.clearSelectedElements = function (redraw) {
-    treeSelectedElement = [];
-    refreshTreeSelectedElementAncestors();
-    if (redraw != false) update(root);
-    return cmd;
-  };
-  /**
-   * Ask to collapse all elements that have no selected descendants
-   * @return cmd() itself
-   */
-
-
-  cmd.collapseNotSelectedElement = function () {
-    collapseNotSelectedElement(root);
-    update(root);
-    return cmd;
-  };
-  /**
-   * Ask to expand to all selected elements
-   * @return cmd() itself
-   */
-
-
-  cmd.expandSelectedElement = function () {
-    expandSelectedElement(root);
-    update(root);
-    return cmd;
-  };
-  /**
-   * Ask to expand to all selected elements
-   * @return cmd() itself
-   */
-
-
-  cmd.expandAllDescendantElement = function (identifier) {
-    console.log(identifierAccessor(root));
-    var node = identifierToElement[identifier] || root;
-    browseToFromElement(identifier, root, false, true);
-    expandAllDescendantElement(node);
-    update(node);
-    return cmd;
-  };
-  /**
-   * Return the element that have this identifier
-   * @return cmd() itself
-   */
-
-
-  cmd.getElementByIdentifier = function (identifier) {
-    return identifierToElement[identifier];
-  };
-  /**
-   * Iterate over ell the elements of the tree
-   * @return cmd() itself
-   */
-
-
-  cmd.forEachElement = function (fcn) {
-    $.each(identifierToElement, fcn);
-    return cmd;
-  };
-  /**
-   * Iterate over ell the elements of the tree
-   * @return cmd() itself
-   */
-
-
-  cmd.resetPanAndZoom = function () {
-    reset();
-    return cmd;
-  };
-  /**
-   * Zooming in and out with buttons
-   * @param {string} type Zooming type (in or out)
-   * @return cmd() itself
-   */
-
-
-  cmd.manualZoomInAndOut = function (type) {
-    manualZoom(type);
-    return cmd;
-  };
-  /**
-  *
-  * @param {Object[]} elements - the identifiers that should be visible after the call of this method
-  */
-
-
-  cmd.moveElementsIntoView = function (elements) {
-    moveElementsIntoView(elements);
-  }; // getter and setter functions. See Mike Bostocks post "Towards Reusable Charts" for a tutorial on how this works.
-
-
-  chart.cmd = cmd;
-  /**
-   * Accessor configuring the animation's duration
-   * @param {boolean} value
-   */
-
-  chart.duration = function (value) {
-    if (!arguments.length) return duration;
-    duration = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if debug message should be displayed
-   * @param {boolean} value
-   */
-
-
-  chart.debug = function (value) {
-    if (!arguments.length) return debug;
-    debug = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if the tooltip should be displayed
-   * @param {boolean} value
-   */
-
-
-  chart.tooltipEnabled = function (value) {
-    if (!arguments.length) return tooltipEnabled;
-    tooltipEnabled = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if the children should be sorted
-   * @param {boolean} value
-   */
-
-
-  chart.sortChildren = function (value) {
-    if (!arguments.length) return sortChildren;
-    sortChildren = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if shift key should be used to open externally an element
-   * @param {boolean} [value=false]
-   */
-
-
-  chart.use_shift_to_open = function (value) {
-    if (!arguments.length) return use_shift_to_open;
-    use_shift_to_open = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if alt control should be used to open externally an element
-   * @param {boolean} [value=true]
-   */
-
-
-  chart.use_control_to_open = function (value) {
-    if (!arguments.length) return use_control_to_open;
-    use_control_to_open = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if alt key should be used to open externally an element
-   * @param {boolean} [value=false]
-   */
-
-
-  chart.use_alt_to_open = function (value) {
-    if (!arguments.length) return use_alt_to_open;
-    use_alt_to_open = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if shift key should be used to add/remove an element to/from selection
-   * @param {boolean} [value=true]
-   */
-
-
-  chart.use_shift_to_add = function (value) {
-    if (!arguments.length) return use_shift_to_add;
-    use_shift_to_add = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if control key should be used to add/remove an element to/from selection
-   * @param {boolean} [value=false]
-   */
-
-
-  chart.use_control_to_add = function (value) {
-    if (!arguments.length) return use_control_to_add;
-    use_control_to_add = value;
-    return chart;
-  };
-  /**
-   * Accessor configuring if alt key should be used to add/remove an element to/from selection
-   * @param {boolean} [value=false]
-   */
-
-
-  chart.use_alt_to_add = function (value) {
-    if (!arguments.length) return use_alt_to_add;
-    use_alt_to_add = value;
-    return chart;
-  };
-  /**
-   * Accessor to the url where the json formatted tree can be found
-   * @param {string} value - a valid url
-   * @param {string} tree - the tree 
-   */
-
-
-  chart.data_url = function (value, tree, isVersion) {
-    if (!arguments.length) return data_url; //let version=getCookie("edam_version","1.25");
-    //let versionData=getCookie("edam_version"+version)
-
-    identifierToElement = {};
-    data_url = (0, _utils.getCookie)("edam_url", "https://raw.githubusercontent.com/edamontology/edamontology/main/releases/EDAM_1.25.owl"); //     if(tree)
-    //     chart.data(tree);
-    //     else
-    //     chart.data(json);
-    // }
-    //last loaded version
-
-    if (!isVersion || !tree) {
-      tree = JSON.parse(localStorage.getItem("current_edam"));
-    }
-
-    tree.meta.data_url = data_url;
-    chart.data(tree); // data_url = getCookie("edam_url","https://raw.githubusercontent.com/edamontology/edamontology/main/releases/EDAM_1.25.owl");
-    // if(json==null) {
-    //     alert('Unable to read content of "' + data_url + '"');
-    // }else{
-    //     if(typeof json.meta=="undefined"){
-    //         json.meta={"version":"v n/a", "date":"n/a"};
-    //     }
-    //     json.meta.data_url=data_url;
-    //     if(tree)
-    //     chart.data(tree);
-    //     else
-    //     chart.data(json);
-    //}
-  };
-  /**
-   * Accessor to the url where the json formatted tree can be found
-   * @param {string} value - a valid url
-   */
-
-
-  chart.data = function (value) {
-    if (!arguments.length) return root;
-    identifierToElement = {};
-    root = d3.hierarchy(preTreatmentOfLoadedTree(value), function (d) {
-      return d.children;
-    });
-    initTreeAndTriggerUpdate();
-    return chart;
-  };
-  /**
-   * Accessor to the method adding classed to nodes
-   * @param {function} value - an implementation of function (d){...} returning a class name(s)
-   */
-
-
-  chart.additionalCSSClassForNode = function (value) {
-    if (!arguments.length) return additionalCSSClassForNode;
-    additionalCSSClassForNode = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method adding classed to links
-   * @param {function} value - an implementation of function (d){...} returning a class name(s)
-   */
-
-
-  chart.additionalCSSClassForLink = function (value) {
-    if (!arguments.length) return additionalCSSClassForLink;
-    additionalCSSClassForLink = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method returning the text of an element (toString)
-   * @param {function} value - an implementation of function (a){...} returning the text
-   */
-
-
-  chart.textAccessor = function (value) {
-    if (!arguments.length) return textAccessor;
-    textAccessor = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method returning the identifier of an element
-   * @param {function} value - an implementation of function (a){...} returning the identifier
-   */
-
-
-  chart.identifierAccessor = function (value) {
-    if (!arguments.length) return identifierAccessor;
-    identifierAccessor = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method building the tooltip of an element
-   * @param {function} value - an implementation of function (d){...} returning the html code contained in the tooltip
-   */
-
-
-  chart.tooltipBuilder = function (value) {
-    if (!arguments.length) return tooltipBuilder;
-    tooltipBuilder = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method building the tooltip of an element
-   * @param {function} value - an implementation of function (d){...} returning the html code contained in the tooltip
-   */
-
-
-  chart.preTreatmentOfLoadedTree = function (value) {
-    if (!arguments.length) return preTreatmentOfLoadedTree;
-    preTreatmentOfLoadedTree = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method testing if an element is initially selected
-   * @param {function} value - an implementation of function (d){...} returning true if the element is initially selected
-   */
-
-
-  chart.initiallySelectedElementHandler = function (value) {
-    if (!arguments.length) return initiallySelectedElementHandler;
-    initiallySelectedElementHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method testing the validity of the selection of an element
-   * @param {function} value - an implementation of function (d){...} returning true if the element can be selected
-   */
-
-
-  chart.addingElementHandler = function (value) {
-    if (!arguments.length) return addingElementHandler;
-    addingElementHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method launch when an element have been requested to open externally
-   * @param {function} value - an implementation of function (d){...}
-   */
-
-
-  chart.openElementHandler = function (value) {
-    if (!arguments.length) return openElementHandler;
-    openElementHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method launch when an element have been clicked
-   * @param {function} value - an implementation of function (){...}
-   */
-
-
-  chart.clickedElementHandler = function (value) {
-    if (!arguments.length) return clickedElementHandler;
-    clickedElementHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method testing the validity of the deselection of an element
-   * @param {function} value - an implementation of function (d){...} returning true if the element can be deselected
-   */
-
-
-  chart.removingElementHandler = function (value) {
-    if (!arguments.length) return removingElementHandler;
-    removingElementHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method launch when the tree has been built
-   * @param {function} value - an implementation of function (){...}
-   */
-
-
-  chart.loadingDoneHandler = function (value) {
-    if (!arguments.length) return loadingDoneHandler;
-    loadingDoneHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method launch when a tree is being loaded with the meta information fetched from the root element
-   * @param {function} value - an implementation of function (meta){...}
-   */
-
-
-  chart.metaInformationHandler = function (value) {
-    if (!arguments.length) return metaInformationHandler;
-    metaInformationHandler = value;
-    return chart;
-  };
-  /**
-   * Accessor to the method testing equality between two nodes
-   * @param {function} value - an implementation of function (a,b){...} returning true if a and b are equals
-   */
-
-
-  chart.elementEquality = function (value) {
-    if (!arguments.length) return elementEquality;
-    elementEquality = value;
-    return chart;
-  };
-
-  return chart;
-};
-
-exports.interactive_tree = interactive_tree;
-},{"d3":"BG5c","./utils.js":"MgTz"}],"IZXy":[function(require,module,exports) {
-"use strict";Object.defineProperty(exports,"__esModule",{value:true});exports["default"]=exports.gtag=exports.install=void 0;var install=function install(trackingId){var additionalConfigInfo=arguments.length>1&&arguments[1]!==undefined?arguments[1]:{};var scriptId="ga-gtag";if(document.getElementById(scriptId))return;var _document=document,head=_document.head;var script=document.createElement("script");script.id=scriptId;script.type="text/javascript";script.async=true;script.src="https://www.googletagmanager.com/gtag/js?id=".concat(trackingId);head.insertBefore(script,head.firstChild);window.dataLayer=window.dataLayer||[];gtag("js",new Date);gtag("config",trackingId,additionalConfigInfo)};exports.install=install;var gtag=function gtag(){window.dataLayer.push(arguments)};exports.gtag=gtag;var _default=gtag;exports["default"]=_default;
-},{}],"ppKG":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.typeDict = void 0;
-
-require("../jquery-import");
-
-require("bootstrap");
-
-require("jquery-ui-themes/themes/smoothness/jquery-ui.css");
-
-require("bootstrap/dist/css/bootstrap.css");
-
-require("@fortawesome/fontawesome-free/css/all.css");
-
-require("../css/bootstrap.xl.css");
-
-require("../css/autocomplete-edam-reusable.css");
-
-require("../css/edam.css");
-
-require("../css/dark-theme.css");
-
-require("regenerator-runtime/runtime");
-
-require("jquery-ui-bundle");
-
-var _utils = require("./utils.js");
-
-var _autocompleteEdamReusable2 = require("./autocomplete-edam-reusable.js");
-
-var browser;
-var typeDict = {
-  "has_topic_container": "topic",
-  "is_format_of_container": "data",
-  "has_input_container": "data",
-  "has_output_container": "data",
-  "is_identifier_of_container": "data"
-};
-exports.typeDict = typeDict;
-
-function fill_form(identifier, parent, branch) {
-  //not used, won't be used after loading from cache
-  //let tree_file = getTreeFile(branch);
-  (0, _autocompleteEdamReusable2.build_autocomplete_from_edam_browser)(browser, undefined, typeDict);
-  browser.interactive_tree.cmd.getElementByIdentifier(identifier);
-  build_form(browser.interactive_tree.cmd.getElementByIdentifier(identifier), browser.interactive_tree.cmd.getElementByIdentifier(parent));
-}
-
-function build_form(target, parentOfNewTerm) {
-  var v;
-
-  if (target) {
-    $("#id_label").val(v = target.text);
-    $("#id_label").attr('data-initial', v);
-    $("#id_definition").val(v = target.definition);
-    $("#id_definition").attr('data-initial', v);
-    $("#id_exactSynonyms").val(v = join_if_exists(target.exact_synonyms));
-    $("#id_exactSynonyms").attr('data-initial', v);
-    $("#id_narrowSynonyms").val(v = join_if_exists(target.narrow_synonyms));
-    $("#id_narrowSynonyms").attr('data-initial', v);
-    /*v=[];
-    for(var i=0;i<target.parent.length;i++){
-        v.push(target.parents[i].data.uri);
-    }
-    v=v.join("|");*/
-
-    var parents;
-    var i;
-
-    if (target.duplicate) {
-      parents = {};
-      parents[target.parent.data.uri] = target.parent;
-      $.each(target.duplicate, function (id, clone) {
-        parents[clone.parent.data.uri] = clone.parent;
-      });
-      parents = $.map(parents, function (value, key) {
-        return value;
-      });
-    } else {
-      parents = [target.parent];
-    }
-
-    $(".search-term[name=parent-0]").attr('data-initial', parents[0].data.uri);
-    $(".search-term[name=parent-0]").attr('data-selected', parents[0].data.uri);
-    $(".search-term[name=parent-0]").val(parents[0].text);
-
-    for (i = 1; i < parents.length; i++) {
-      addTermField("#parent_container", "parent", parents[i]);
-    }
-
-    for (i = 0; i < (target.has_topic || []).length; i++) {
-      addTermField("#has_topic_container", "has_topic", browser.interactive_tree.cmd.getElementByIdentifier(target.has_topic[i]));
-    }
-
-    for (i = 0; i < (target.is_format_of || []).length; i++) {
-      addTermField("#is_format_of_container", "is_format_of", browser.interactive_tree.cmd.getElementByIdentifier(target.is_format_of[i]));
-    }
-
-    for (i = 0; i < (target.has_input || []).length; i++) {
-      addTermField("#has_input_container", "has_input", browser.interactive_tree.cmd.getElementByIdentifier(target.has_input[i]));
-    }
-
-    for (i = 0; i < (target.has_output || []).length; i++) {
-      addTermField("#has_output_container", "has_output", browser.interactive_tree.cmd.getElementByIdentifier(target.has_output[i]));
-    }
-
-    for (i = 0; i < (target.is_identifier_of || []).length; i++) {
-      addTermField("#is_identifier_of_container", "is_identifier_of", browser.interactive_tree.cmd.getElementByIdentifier(target.is_identifier_of[i]));
-    }
-  } else {
-    $(".search-term").val(parentOfNewTerm.text);
-  } // toggle per-branch attributs
-
-
-  var s_branch = (0, _utils.getUrlParameter)('term') || (0, _utils.getUrlParameter)('parent');
-  s_branch = s_branch.substring(s_branch.lastIndexOf('/') + 1, s_branch.lastIndexOf('_'));
-
-  if (is_descendant_of_or_is(target || parentOfNewTerm, "http://edamontology.org/data_0842")) {
-    s_branch = "identifier";
-  }
-
-  $('.optional_rel').hide();
-  $('.' + s_branch + '_rel').show(); // unlock form
-
-  $("form [disabled=disabled]").attr("disabled", false);
-}
-
-function is_descendant_of_or_is(node, ancestor_identifier) {
-  if (browser.identifierAccessor(node) === ancestor_identifier) return true;
-  if (browser.identifierAccessor(node) === "owl:Thing") return false;
-  return is_descendant_of_or_is(node.parent, ancestor_identifier);
-}
-
-function join_if_exists(tab) {
-  if (typeof tab == "undefined") {
-    return "";
-  }
-
-  return tab.join('; ');
-}
-
-window.addTermField = function addTermField(container, kind, initial_term) {
-  var i = $(container).find(".search-term").length;
-  $(".search-term[name=parent-0]").clone().attr("name", kind + "-" + i).insertBefore($(container).children("button"));
-  $(".search-term[name=" + kind + "-" + i + "]").val(initial_term ? initial_term.text : "").attr('data-initial', initial_term ? initial_term.data.uri : "").attr("data-selected", initial_term ? initial_term.data.uri : ""); //    build_autocomplete(
-  //        getTreeFile(getCookie("edam_browser_branch","topic")),
-
-  (0, _autocompleteEdamReusable2.build_autocomplete_from_edam_browser)(browser, ".search-term[name=" + kind + "-" + i + "]", typeDict);
-};
-
-var uri = "";
-var parent_uri = null;
-
-window.onload = function () {
-  (0, _utils.getDarkMode)();
-  uri = (0, _utils.getUrlParameter)('term');
-  var branch = (0, _utils.getUrlParameter)('branch');
-
-  if (uri) {
-    $('#pageTitle .new').hide();
-  } else {
-    $('#pageTitle .change').hide();
-  }
-
-  var sub_branch = (0, _utils.getUrlParameter)('term') + (0, _utils.getUrlParameter)('parent');
-  sub_branch = sub_branch.substring(sub_branch.lastIndexOf('/') + 1, sub_branch.lastIndexOf('_'));
-  $('#pageTitle .branch').text(sub_branch);
-  typeDict.parent_container = sub_branch;
-  browser = (0, _autocompleteEdamReusable2.fake_interactive_edam_browser)();
-  browser.interactive_tree.loadingDoneHandler(function () {
-    fill_form(uri, (0, _utils.getUrlParameter)('parent'), branch);
-  });
-  browser.current_branch((0, _utils.getUrlParameter)('branch'));
-};
-
-window.sendToGitHub = function sendToGitHub() {
-  var ids = ["#id_parent", "#id_label", "#id_definition", "#id_exactSynonyms", "#id_narrowSynonyms"];
-  var i;
-  $(".search-term").each(function () {
-    ids.push(".search-term[name=" + this.getAttribute("name") + "]");
-  });
-  var msg = "";
-  msg += "[//]: # (You can add comment regarding your issue hereafter)\n";
-
-  if ($("#id_github_comments").val()) {
-    msg += "### Comments\n";
-  }
-
-  msg += $("#id_github_comments").val();
-  msg += "\n\n";
-  msg += "[//]: # (End of issue comments)\n";
-  msg += "### Hereafter are the initial version and proposed modification of attributes of the given term\n";
-
-  for (i = 0; i < ids.length; i++) {
-    var val = $(ids[i]).attr('data-selected') || $(ids[i]).val();
-
-    if (val != $(ids[i]).attr('data-initial')) {
-      msg += "\n";
-      msg += "| key | value |\n";
-      msg += "| --- | --- |\n";
-      msg += "| Attr  | **" + $(ids[i]).attr('name') + "** |\n";
-      msg += "| Old | " + $(ids[i]).attr('data-initial') + " |\n";
-      msg += "| New | " + val + " |\n";
-      msg += "|  |  |\n";
-      msg += "\n";
-    }
-  }
-
-  if ($('#pageTitle .new:visible').length > 0) {
-    $("#sender [name=title]").val("[Edam Browser User] New child proposition for " + $("#id_parent").val());
-  } else {
-    $("#sender [name=title]").val("[Edam Browser User] Change proposition for " + uri);
-  }
-
-  $("#sender [name=body]").val(msg);
-  $("#sender").submit();
-};
-},{"../jquery-import":"WZAb","bootstrap":"jv0N","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","jquery-ui-bundle":"Hifx","./utils.js":"MgTz","./autocomplete-edam-reusable.js":"ZZY2"}],"ZZY2":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.fake_interactive_edam_browser = fake_interactive_edam_browser;
-exports.build_autocomplete_from_edam_browser = build_autocomplete_from_edam_browser;
-
-var _edit = require("./edit.js");
-
-function fake_interactive_edam_browser() {
-  var identifierToElement = {},
-      identifierAccessor = function identifierAccessor(d) {
-    return d.data.uri;
-  },
-      textAccessor = function textAccessor(d) {
-    if (typeof d.text == "undefined") return identifierAccessor(d);
-    if (d.text.constructor === Array) return d.text[0];
-    return d.text;
-  },
-      interactive_tree = function interactive_tree() {
-    return interactive_tree;
-  },
-      loadingDoneHandler = function loadingDoneHandler() {};
-
-  function buildIdentifierToElement(element, parent) {
-    element.parent = parent;
-
-    if (identifierAccessor(element) === "http://www.w3.org/2002/07/owl#DeprecatedClass") {
-      element.deprecated = true;
-    }
-
-    var node = identifierToElement[identifierAccessor(element)];
-
-    if (typeof node != "undefined") {
-      if (typeof node.duplicate == "undefined") node.duplicate = [];
-      node.duplicate.push(element);
-      element.duplicate = node.duplicate;
-    } else {
-      identifierToElement[identifierAccessor(element)] = element;
-    }
-
-    element.parent = parent;
-
-    for (var i = 0; i < (element.children || []).length; i++) {
-      if (element.deprecated) {
-        element.children[i].deprecated = true;
-      }
-
-      buildIdentifierToElement(element.children[i], element);
-    }
-  } //end of function buildIdentifierToElement
-
-  /**
-   * The browser
-   */
-
-
-  function browser() {}
-  /**
-   * Read-only accessor to the interactive tree
-   * @return {object} the tree
-   */
-
-
-  browser.interactive_tree = interactive_tree;
-  /**
-   * Accessor to the method launch when the tree has been built
-   * @param {function} value - an implementation of function (){...}
-   */
-
-  interactive_tree.loadingDoneHandler = function (value) {
-    if (!arguments.length) return loadingDoneHandler;
-    loadingDoneHandler = value;
-    return interactive_tree;
-  };
-  /**
-   * The tree's commands
-   */
-
-
-  function cmd() {
-    return cmd;
-  }
-
-  interactive_tree.cmd = cmd;
-  /**
-   * Return the element that have this identifier
-   * @return cmd() itself
-   */
-
-  cmd.getElementByIdentifier = function (identifier) {
-    return identifierToElement[identifier];
-  };
-  /**
-   * Iterate over ell the elements of the tree
-   * @return cmd() itself
-   */
-
-
-  cmd.forEachElement = function (fcn) {
-    $.each(identifierToElement, fcn);
-    return cmd;
-  };
-
-  cmd.selectElement = function () {};
-
-  cmd.clearSelectedElements = function () {};
-
-  cmd.moveElementsIntoView = function () {};
-  /**
-   * Read-only proxy to use the identifierAccessor of the interactive_tree
-   * @param {object} an element
-   * @return {object} the value return by the identifierAccessor for the given parameter
-   */
-
-
-  browser.identifierAccessor = identifierAccessor;
-  /**
-   * Read-only proxy to use the textAccessor of the interactive_tree
-   * @param {object} an element
-   * @return {object} the value return by the textAccessor for the given parameter
-   */
-
-  browser.textAccessor = textAccessor;
-  /**
-   * Get the current branch or load the branch given in parameter if it is not
-   * the current branch
-   * @param {string} value
-   */
-
-  browser.current_branch = function (value) {
-    //should be replaced with loading from cache
-    var tree = localStorage.getItem("current_edam");
-    buildIdentifierToElement(tree, null);
-    loadingDoneHandler();
-    return browser;
-    /*$.ajax({
-        type: "GET",
-        dataType: "json",
-        url:getTreeFile(value),
-        data: {},
-        success: function (data, textStatus, xhr) {
-            buildIdentifierToElement(data, null);
-            loadingDoneHandler();
-        }
-    });
-    return browser;
-    };
-    return browser;*/
-  };
-
-  return browser;
-}
-/**
-* Build the autocomplete from the edam browser.
-* @param {object} the edam browser instance
-* @param {str} the target where we should build the autocomplete
-* @param {object} the filter dictionary (if a filter is applied)
-*/
-
-
-function build_autocomplete_from_edam_browser(edam_browser, elt, dict) {
-  if (typeof elt == "undefined") {
-    elt = '.search-term';
-  }
-
-  var t;
-  if ($(elt).data('ui-autocomplete') != undefined) $(elt).autocomplete("destroy");
-
-  function initIndex() {
-    edam_browser.interactive_tree().cmd().forEachElement(function (i, elt) {
-      var uri = edam_browser.identifierAccessor(elt);
-      var key = uri.substring(uri.lastIndexOf('/') + 1);
-      var values = [edam_browser.textAccessor(elt), key];
-      if (elt.data.definition) values.push(elt.data.definition);
-      if (elt.data.exact_synonyms) values = values.concat(elt.data.exact_synonyms);
-      if (elt.data.narrow_synonyms) values = values.concat(elt.data.narrow_synonyms);
-      elt.__autocomplete_from_edam_browser = values.join(' ').toUpperCase();
-    });
-  }
-
-  initIndex();
-
-  function span_matched(match) {
-    return '<span class="matched">' + match + '</span>';
-  }
-
-  $(elt).autocomplete({
-    source: function source(request, response) {
-      var data = [];
-      var tree = edam_browser.interactive_tree().cmd();
-      var terms = request.term.toUpperCase().split(" ");
-      tree.forEachElement(function (i, elt) {
-        if (typeof elt.__autocomplete_from_edam_browser == "undefined") initIndex();
-
-        for (var j = 0; j < terms.length; j++) {
-          if (elt.__autocomplete_from_edam_browser.indexOf(terms[j]) == -1) return;
-        }
-
-        data.push({
-          value: edam_browser.textAccessor(elt),
-          node: elt
-        });
-      }); //if a filter dictionary is applied
-
-      if (dict) {
-        //match type with the parent's container id
-        var type = _edit.typeDict[$(this.element).parent().attr('id')];
-
-        var matcher = new RegExp(type + '_', "i"); //apply type filter to data
-
-        data = data.filter(function filterCategories(item) {
-          return matcher.test(item.node.__autocomplete_from_edam_browser);
-        });
-      }
-
-      response(data);
-    },
-    minLength: 2,
-    select: function select(event, ui) {
-      // lors de la sélection d'une proposition
-      $(event.target).attr("data-selected", edam_browser.identifierAccessor(ui.item.node));
-      edam_browser.interactive_tree().cmd().clearSelectedElements(false);
-      edam_browser.interactive_tree().cmd.selectElement(edam_browser.identifierAccessor(ui.item.node), true);
-      edam_browser.interactive_tree().cmd.moveElementsIntoView([ui.item.node]);
-    },
-    response: function response(event, ui) {
-      if (typeof window.Levenshtein == "undefined") return;
-      var searched = $(event.target).val().toUpperCase(),
-          i;
-
-      for (i = 0; i < ui.content.length; i++) {
-        ui.content[i].lev = window.Levenshtein(ui.content[i].label.toUpperCase(), searched); //+ window.Levenshtein(ui.content[i].node.__autocomplete_from_edam_browser,searched) / 5;
-      }
-
-      ui.content.sort(function (a, b) {
-        return a.lev - b.lev;
-      });
-      ui.content.splice(20);
-    }
-  }).autocomplete("instance")._renderItem = function (ul, item) {
-    var identifier = edam_browser.identifierAccessor(item.node);
-    identifier = identifier.substring(identifier.lastIndexOf('/') + 1); //var branch = item.deprecated ? "deprecated" : identifier.substring(0,identifier.indexOf("_"));
-
-    var branch = identifier.substring(0, identifier.indexOf("_"));
-    var re = new RegExp($(elt).val(), 'ig');
-    return $("<li class=\"autocomplete-entry\">").append('<div>' + '<div>' + '<span style="">' + edam_browser.textAccessor(item.node).replace(re, span_matched) + '</span>' + '<span style="">' + '<span class="label label-info pull-right bg-edam-' + branch + '" title="' + branch + '">' + identifier.replace(re, span_matched) + '</span>' + (item.node.deprecated ? '<span class="label label-info pull-right bg-edam-deprecated">deprecated</span>' : '') + '</span>' + '</div>' + (item.node.data.definition ? '<div>' + item.node.data.definition.replace(re, span_matched) + '</div>' : "") + '</div>').appendTo(ul);
-  };
-
-  $(elt).prop('disabled', false);
-}
-},{"./edit.js":"ppKG"}],"Imcy":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.biotool_api = biotool_api;
-
-function biotool_api() {
-  function api() {}
-
-  function generic_counter(get_api_url, callback) {
-    return $.ajax({
-      url: get_api_url(),
-      type: "GET",
-      dataType: "json",
-      data: {},
-      success: function success(data, statut) {
-        callback(data.count, data, statut);
-      },
-      error: function error(textStatus, xhr) {
-        console.error(textStatus);
-        console.error(xhr);
-        data = {
-          'count': '0'
-        };
-        callback(data.count, data, textStatus);
-      }
-    });
-  } //end of generic_counter
-
-
-  function decorate_children_with_count(node, get_api_url, callback, suffix) {
-    var field_name = '__biotool_api_count' + (suffix || '');
-    var queue = [];
-    var job_length = 0; // recursive function that add in queue the element and all its descendant
-
-    var pusher = function pusher(n) {
-      queue.push(n);
-      var i;
-      if (typeof n[field_name] != "undefined") job_length--;
-
-      for (i = 0; i < (n._children || []).length; i++) {
-        pusher(n._children[i]);
-      }
-
-      for (i = 0; i < (n.children || []).length; i++) {
-        pusher(n.children[i]);
-      }
-    }; // run pusher, fill queue with all the elements
-
-
-    pusher(node);
-    job_length += queue.length; // create a callback caller that sum all descendant usage and call the actual callback
-
-    function call_callback() {
-      var total = 0,
-          total_d = {};
-      $.each(queue, function (i, e) {
-        total_d[e.data.data.uri] = e[field_name];
-      });
-
-      for (var key in total_d) {
-        total += total_d[key];
-      }
-
-      callback({
-        'descendants': queue.length,
-        'total': total
-      });
-    } // if nothing to do, just run the callback
-
-
-    if (job_length == 0) call_callback(); // create function that will call generic_counter not for the current elements, but an element passed as arg
-
-    var generic_counter_for_this_i = function generic_counter_for_this_i(j) {
-      generic_counter(function () {
-        // get the api url for the focused elements
-        return get_api_url(queue[j].data.data.uri);
-      }, function (data, count, status) {
-        // decorate the element with the count returned by bio.tools
-        queue[j][field_name] = count.count;
-
-        if (job_length == 1) {
-          // when we are the last job, run the callback
-          call_callback();
-        }
-
-        job_length--;
-      });
-    };
-
-    for (var i = 0; i < queue.length; i++) {
-      if (typeof queue[i][field_name] == "undefined") // for each element, run the custom generic_counter
-        generic_counter_for_this_i(i);
-    }
-  } //end of decorate_children_with_count
-  //getter for nothing
-
-
-  var get_for_nothing = function get_for_nothing(name) {
-    var getter = function getter() {};
-
-    getter.count = function (callback) {};
-
-    getter.is_enabled = function () {
-      return false;
-    };
-
-    getter.get_url = function () {};
-
-    getter.get_api_url = function () {};
-
-    return getter;
-  }; //end of function get_for_nothing
-  // generic getter
-
-
-  api.get_for = function (branch, name, uri, node) {
-    if (typeof name == "undefined") return get_for_nothing(); //name=name.toLowerCase();
-
-    if (branch == "deprecated") branch = uri.substring(uri.lastIndexOf("/") + 1, uri.lastIndexOf("_"));
-    if (branch == "topic" || branch.indexOf('edam') != -1 && uri.indexOf('topic') != -1) return api.get_for_topic(name, uri, node);
-    if (branch == "operation" || branch.indexOf('edam') != -1 && uri.indexOf('operation') != -1) return api.get_for_operation(name, uri, node);
-    if (branch == "format" || branch.indexOf('edam') != -1 && uri.indexOf('format') != -1) return api.get_for_format(name, uri, node);
-    if (branch == "data" || branch.indexOf('edam') != -1 && uri.indexOf('data') != -1) return api.get_for_data(name, uri, node);
-    return get_for_nothing();
-  }; //end of function get_for
-  //getter for term with single usage (tagging)
-
-
-  var get_for_single_search = function get_for_single_search(uiKey, apiKey) {
-    return function (name, uri, node) {
-      var identifier = uri.substring(uri.lastIndexOf("/") + 1); //getter object
-
-      var getter = function getter() {}; //function to count the number of tools associated
-
-
-      getter.count = function (callback) {
-        return generic_counter(getter.get_api_url, callback);
-      }; //function to count the number of tools associated including descendants
-
-
-      getter.count_with_descendants = function (callback) {
-        return decorate_children_with_count(node, getter.get_api_url, callback);
-      }; //is the count function enabled
-
-
-      getter.is_enabled = function () {
-        return true;
-      }; //get the url returning the tools for human
-
-
-      getter.get_url = function () {
-        return "https://bio.tools/t?" + uiKey + "=%22" + identifier + "%22";
-      }; //get the url returning the tools for api call
-
-
-      getter.get_api_url = function (value) {
-        // use value when provided, otherwise user uri
-        return "https://bio.tools/api/tool/?format=json&" + apiKey + "=%22" + (value || uri) + "%22";
-      };
-
-      return getter;
-    };
-  }; //end of function get_for_single_search
-
-
-  api.get_for_topic = get_for_single_search("topicID", "topicID");
-  api.get_for_operation = get_for_single_search("operationID", "operationID"); //getter for term with two usage (input and output)
-
-  var get_for_double_search = function get_for_double_search(uiInKey, uiOutKey, apiInKey, apiOutKey) {
-    return function (name, uri, node) {
-      var identifier = uri.substring(uri.lastIndexOf("/") + 1); //getter object
-
-      var getter = function getter() {}; //function to count the number of tools associated
-
-
-      getter.count = function (callback) {
-        return generic_counter(function () {
-          return getter.get_api_url()[0];
-        }, function (cpt_in, data_in) {
-          generic_counter(function () {
-            return getter.get_api_url()[1];
-          }, function (cpt_out, data_out) {
-            callback([cpt_in, cpt_out], [data_in, data_out]);
-          });
-        });
-      }; //function to count the number of tools associated including descendants
-
-
-      getter.count_with_descendants = function (callback) {
-        return decorate_children_with_count(node, function (value) {
-          return getter.get_api_url(value)[0];
-        }, function (res_input) {
-          decorate_children_with_count(node, function (value) {
-            return getter.get_api_url(value)[1];
-          }, function (res_output) {
-            callback({
-              'input': res_input,
-              'output': res_output
-            });
-          }, "_ouput");
-        }, "_input");
-      }; //is the count function enabled
-
-
-      getter.is_enabled = function () {
-        return true;
-      }; //get the url returning the tools for human
-
-
-      getter.get_url = function () {
-        return ["https://bio.tools/t?" + uiInKey + "=%22" + identifier + "%22", "https://bio.tools/t?" + uiOutKey + "=%22" + identifier + "%22"];
-      }; //get the url returning the tools for api call
-
-
-      getter.get_api_url = function (value) {
-        // use value when provided, otherwise user uri
-        return ["https://bio.tools/api/tool/?format=json&" + apiInKey + "=%22" + (value || uri) + "%22", "https://bio.tools/api/tool/?format=json&" + apiOutKey + "=%22" + (value || uri) + "%22"];
-      };
-
-      return getter;
-    };
-  }; //end of function get_for_double_search
-
-
-  api.get_for_data = get_for_double_search("inputDataTypeID", "outputDataTypeID", "inputDataTypeID", "outputDataTypeID");
-  api.get_for_format = get_for_double_search("inputID", "outputID", "inputDataFormatID", "outputDataFormatID");
-  return api;
-}
-},{}],"vm1S":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.biosphere_api = biosphere_api;
-
-if (typeof String.prototype.localeCompare === 'undefined') {
-  String.prototype.localeCompare = function (str, locale, options) {
-    return this == str ? 0 : this > str ? 1 : -1;
-  };
-}
-
-function biosphere_api() {
-  function api() {} //getter for nothing
-
-
-  var get_for_nothing = function get_for_nothing(name) {
-    var getter = function getter() {};
-
-    getter.count = function (callback) {};
-
-    getter.is_enabled = function () {
-      return false;
-    };
-
-    getter.get_url = function () {};
-
-    getter.get_api_url = function () {};
-
-    return getter;
-  }; // generic getter
-
-
-  api.get_for = function (branch, name, uri, node) {
-    if (uri.indexOf("edam") == -1) return get_for_nothing();
-    var term_id = uri.substring(uri.lastIndexOf("/") + 1);
-    branch = term_id.substring(0, term_id.lastIndexOf("_"));
-    var number = term_id.substring(term_id.lastIndexOf("_") + 1); //getter object
-
-    var getter = function getter() {}; //function to count the number of tools associated
-
-
-    getter.count = function (callback) {
-      return $.ajax({
-        url: getter.get_api_url(),
-        type: "GET",
-        dataType: "json",
-        data: {},
-        headers: {
-          'X-Requested-With': 'https://github.com/IFB-ElixirFr/edam-browser'
-        },
-        success: function success(data, statut) {
-          var appliances_row = data.content.split("href=\"/catalogue/appliance/");
-          var tools_row = data.content.split("href=\"/catalogue/tool/");
-          var appliances = [];
-          var tools = [];
-          var i;
-
-          for (i = 1; i < appliances_row.length; i++) {
-            appliances.push(appliances_row[i].match(/[^>]*>([^<]*)[<]/)[1].trim());
-          }
-
-          for (i = 1; i < tools_row.length; i++) {
-            tools.push(tools_row[i].match(/[^>]*>([^<]*)[<]/)[1].trim());
-          }
-
-          callback([appliances.length, tools.length], [appliances.sort(function (a, b) {
-            return a.localeCompare(b);
-          }), tools.sort(function (a, b) {
-            return a.localeCompare(b);
-          })], statut);
-        },
-        error: function error(textStatus, xhr) {
-          console.error(textStatus);
-          console.error(xhr);
-          callback(-1, [], textStatus);
-        }
-      });
-    }; //is the count function enabled
-
-
-    getter.is_enabled = function () {
-      return true;
-    }; //get the url returning the tools for human
-
-
-    getter.get_url = function () {
-      return "https://biosphere.france-bioinformatique.fr/edamontology/" + branch + "/" + number + "/";
-    }; //get the url returning the tools for api call
-
-
-    getter.get_api_url = function () {
-      return getter.get_url() + "?media=json&included=True";
-    };
-
-    return getter;
-  }; //getter for topics
-
-
-  api.get_for_topic = function (name) {
-    return api.get_for("topic", name);
-  }; //getter for operations
-
-
-  api.get_for_operation = function (name) {
-    return get_for_nothing();
-  }; //getter for data
-
-
-  api.get_for_data = function (name) {
-    return get_for_nothing();
-  }; //getter for format
-
-
-  api.get_for_format = function (name) {
-    return get_for_nothing();
-  };
-
-  return api;
-}
-},{}],"gGT0":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.bioweb_api = bioweb_api;
-
-if (typeof String.prototype.localeCompare === 'undefined') {
-  String.prototype.localeCompare = function (str, locale, options) {
-    return this == str ? 0 : this > str ? 1 : -1;
-  };
-}
-
-function bioweb_api() {
-  function api() {} //getter for nothing
-
-
-  var get_for_nothing = function get_for_nothing(name) {
-    var getter = function getter() {};
-
-    getter.count = function (callback) {};
-
-    getter.is_enabled = function () {
-      return false;
-    };
-
-    getter.get_url = function () {};
-
-    getter.get_api_url = function () {};
-
-    return getter;
-  }; // generic getter
-
-
-  api.get_for = function (branch, name, uri, node) {
-    var term_id = uri.substring(uri.lastIndexOf("/") + 1);
-    if (branch == "deprecated") branch = term_id.substring(0, uri.lastIndexOf("_"));
-    if (branch != "topic" && (branch.indexOf('edam') == -1 || uri.indexOf('topic') == -1)) return get_for_nothing(); //getter object
-
-    var getter = function getter() {}; //function to count the number of tools associated
-
-
-    getter.count = function (callback) {
-      return $.ajax({
-        url: getter.get_api_url(),
-        type: "GET",
-        dataType: "json",
-        data: {},
-        headers: {
-          'X-Requested-With': 'https://github.com/IFB-ElixirFr/edam-browser'
-        },
-        success: function success(data, statut) {
-          callback(data.length, data.sort(function (a, b) {
-            return a.name.localeCompare(b.name);
-          }), statut);
-        },
-        error: function error(textStatus, xhr) {
-          console.error(textStatus);
-          console.error(xhr);
-          callback(-1, [], textStatus);
-        }
-      });
-    }; //is the count function enabled
-
-
-    getter.is_enabled = function () {
-      return false;
-    }; //get the url returning the tools for human
-
-
-    getter.get_url = function () {
-      return "https://bioweb.pasteur.fr/packages/topics/" + term_id;
-    }; //get the url returning the tools for api call
-
-
-    getter.get_api_url = function () {
-      return "https://cors-anywhere.pasteur.cloud/https://bioweb.pasteur.fr/api/packages?search=&topicId=" + term_id;
-    };
-
-    return getter;
-  }; //getter for topics
-
-
-  api.get_for_topic = function (name) {
-    return api.get_for("topic", name);
-  }; //getter for operations
-
-
-  api.get_for_operation = function (name) {
-    return get_for_nothing();
-  }; //getter for data
-
-
-  api.get_for_data = function (name) {
-    return get_for_nothing();
-  }; //getter for format
-
-
-  api.get_for_format = function (name) {
-    return get_for_nothing();
-  };
-
-  return api;
-}
-},{}],"KEE6":[function(require,module,exports) {
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.tess_api = tess_api;
-
-function tess_api() {
-  function api() {} //getter for nothing
-
-
-  var get_for_nothing = function get_for_nothing(name) {
-    var getter = function getter() {};
-
-    getter.count = function (callback) {};
-
-    getter.is_enabled = function () {
-      return false;
-    };
-
-    getter.get_url = function () {};
-
-    getter.get_api_url = function () {};
-
-    return getter;
-  }; // generic getter
-
-
-  api.get_for = function (branch, name, uri, node) {
-    if (uri.indexOf("edam") == -1) return get_for_nothing(); //getter object
-
-    var getter = function getter() {}; //function to count the number of tools associated
-
-
-    getter.count = function (callback) {
-      return $.ajax({
-        url: getter.get_api_url(),
-        type: "GET",
-        dataType: "json",
-        data: {},
-        success: function success(data, statut) {
-          callback(data.length, data, statut);
-        },
-        error: function error(textStatus, xhr) {
-          console.error(textStatus);
-          console.error(xhr);
-          callback(-1, [], textStatus);
-        }
-      });
-    }; //is the count function enabled
-
-
-    getter.is_enabled = function () {
-      return typeof name != "undefined";
-    }; //get the url returning the tools for human
-
-
-    getter.get_url = function () {
-      return "https://tess.elixir-europe.org/materials?scientific_topics=" + name.replace(/ /g, '+');
-    }; //get the url returning the tools for api call
-
-
-    getter.get_api_url = function () {
-      return "https://tess.elixir-europe.org/materials.json?scientific_topics=" + name.replace(/ /g, '+');
-    };
-
-    return getter;
-  }; //getter for topics
-
-
-  api.get_for_topic = function (name) {
-    return api.get_for("topic", name);
-  }; //getter for operations
-
-
-  api.get_for_operation = function (name) {
-    return api.get_for("operation", name);
-  }; //getter for data
-
-
-  api.get_for_data = function (name) {
-    return api.get_for("data", name);
-  }; //getter for format
-
-
-  api.get_for_format = function (name) {
-    return api.get_for("format", name);
-  };
-
-  return api;
-}
-},{}],"jYhn":[function(require,module,exports) {
+},{"jquery-ui-bundle":"Hifx"}],"jYhn":[function(require,module,exports) {
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 /**
@@ -73798,7 +71677,2109 @@ program.parse();*/
 
 
 exports.parseRDF = parseRDF;
-},{"./src/parser.js":"XGIh","axios":"O4Aa"}],"qsCb":[function(require,module,exports) {
+},{"./src/parser.js":"XGIh","axios":"O4Aa"}],"kypQ":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.interactive_tree = void 0;
+
+var d3 = _interopRequireWildcard(require("d3"));
+
+var _utils = require("./utils.js");
+
+var _edam2jsonJs = require("edam2json-js");
+
+function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "function") return null; var cacheBabelInterop = new WeakMap(); var cacheNodeInterop = new WeakMap(); return (_getRequireWildcardCache = function (nodeInterop) { return nodeInterop ? cacheNodeInterop : cacheBabelInterop; })(nodeInterop); }
+
+function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
+
+/**
+ * Build an interactive tree
+ * @return {object} the tree
+ */
+var interactive_tree = function interactive_tree() {
+  var debug = false,
+      margin = {
+    top: 10,
+    right: 50,
+    bottom: 10,
+    left: 80
+  },
+      voidHandler = function voidHandler(name) {
+    return function () {
+      if (debug) console.log(name);
+    };
+  },
+      voidHandlerStrBlank = function voidHandlerStrBlank(name) {
+    return function () {
+      if (debug) console.log(name);
+      return "";
+    };
+  },
+      initiallySelectedElementHandler = voidHandler("initiallySelectedElementHandler"),
+      addingElementHandler = voidHandler("addingElementHandler"),
+      openElementHandler = voidHandler("openElementHandler"),
+      clickedElementHandler = function clickedElementHandler(d) {
+    if (debug) console.log(identifierAccessor(d));
+  },
+      removingElementHandler = voidHandler("removingElementHandler"),
+      loadingDoneHandler = voidHandler("loadingDoneHandler"),
+      metaInformationHandler = voidHandler("metaInformationHandler"),
+      removeElementsWithNoSelectedDescendant = false,
+      additionalCSSClassForNode = voidHandlerStrBlank("additionalCSSClassForNode"),
+      additionalCSSClassForLink = voidHandlerStrBlank("additionalCSSClassForLink"),
+      sortChildren = false,
+      identifierAccessor = function identifierAccessor(d) {
+    return d.data.id;
+  },
+      textAccessor = function textAccessor(d) {
+    if (typeof d.data.text == "undefined") return identifierAccessor(d);
+    if (d.data.text.constructor === Array) return d.data.text[0];
+    return d.data.text;
+  },
+      elementEquality = function elementEquality(e, f) {
+    return identifierAccessor(e) == identifierAccessor(f);
+  },
+      tooltipBuilder = function tooltipBuilder(d, tooltipContainer) {
+    var c = "<div class=\"panel panel-default card\"><div class=\"panel-heading\">" + textAccessor(d) + "</div>" + "<div class=\"panel-body\">" + "Identifier: " + identifierAccessor(d) + "</div></div>";
+    tooltipContainer.html(c);
+  },
+      preTreatmentOfLoadedTree = function preTreatmentOfLoadedTree(tree) {
+    return tree;
+  },
+      tooltipEnabled = false,
+      use_shift_to_open = false,
+      use_control_to_open = true,
+      use_alt_to_open = false,
+      use_shift_to_add = true,
+      use_control_to_add = false,
+      use_alt_to_add = false,
+      target_selector = null,
+      data_url = null,
+      root,
+      treeSelectedElement = [],
+      treeSelectedElementAncestors = null,
+      duration = 500,
+      update,
+      updateWithoutPanAndZoomTuning,
+      minX,
+      minY,
+      maxX,
+      maxY,
+      reset,
+      manualZoom,
+      moveElementsIntoView,
+      id = 0,
+      identifierToElement = {};
+
+  function chart(selection) {
+    selection.each(function () {
+      target_selector = this;
+      var treemap = d3.tree().nodeSize([12, 50]).separation(function (a, b) {
+        var a_count = a.children ? a.children.length : 1;
+        var b_count = b.children ? b.children.length : 1;
+        return (a_count + b_count) / 2 + (a.parent == b.parent ? 0 : 1);
+      });
+      var diagonal = d3.linkHorizontal().x(function (d) {
+        return d.y;
+      }).y(function (d) {
+        return d.x;
+      });
+      var zoom = d3.zoom().on("zoom", function () {
+        var currentTransform = vis.attr("transform") || '';
+        currentTransform = currentTransform.replace("(1)", "(1.0000000)");
+        if (currentTransform.includes((d3.zoomTransform(svg.node()).k.toString() + ".0000000").substring(0, 6))) if (!svg.node().classList.contains("auto-drag")) svg.node().classList.add("dragged-or-moved");
+        vis.attr("transform", d3.event.transform);
+      }).on("end", function () {
+        vis.attr("transform", d3.event.transform);
+        svg.node().classList.remove("dragged-or-moved");
+      });
+      var svg = d3.select(this).append("svg:svg").attr("width", "100%").attr("height", "100%").call(zoom);
+      var vis = svg.append("svg:g");
+      var body = d3.select("body");
+      var tooltip = (body.select("div.tooltip").empty() ? body.append("div") : body.select("div.tooltip")).attr("class", "tooltip").style("opacity", 0).on("mouseover", function (d) {
+        if (tooltip.style("opacity") == 0) return;
+        tooltip.transition().duration(200).style("opacity", 1);
+      }).on("mouseout", function (d) {
+        tooltip.transition().duration(200).style("opacity", 0);
+        tooltip.transition().delay(200).style("top", "-2000px");
+      });
+
+      reset = function reset() {
+        var shift;
+        if (vis.select("g.node").node()) shift = vis.select("g.node").node().getBoundingClientRect().width;else shift = margin.left;
+        var t = d3.zoomIdentity.translate(shift, $(target_selector).height() / 2).scale(1);
+        svg.call(zoom.transform, t);
+      };
+
+      manualZoom = function manualZoom(type) {
+        if (type == 'in') {
+          zoom.scaleBy(svg, 2);
+        } else if (type == 'out') {
+          zoom.scaleBy(svg, 0.5);
+        }
+      };
+
+      moveElementsIntoView = function moveElementsIntoView(elements) {
+        var width = $(target_selector).width();
+        var height = $(target_selector).height();
+        var scale = d3.zoomTransform(svg.node()).k;
+        var x = -elements[0].y0;
+        var y = -elements[0].x0;
+        x = x * scale + width / 2;
+        y = y * scale + height / 2;
+        var t = d3.zoomIdentity.translate(x, y).scale(scale);
+        svg.transition().duration(duration).call(zoom.transform, t).node().classList.add("auto-drag");
+        setTimeout(function () {
+          svg.node().classList.remove("auto-drag");
+        }, duration);
+      };
+
+      update = function update(source) {
+        //getting the box surronding the svg element ()
+        var svgBox = vis.node().getBBox();
+        minX = svgBox.x;
+        minY = svgBox.y;
+        maxX = svgBox.width + svgBox.x;
+        maxY = svgBox.height + svgBox.y;
+        updateWithoutPanAndZoomTuning(source);
+        var xShift = (maxX - minX) / 2;
+        zoom.translateExtent([[minX - xShift, minY - xShift], [maxX + xShift, maxY + xShift]]);
+      };
+
+      updateWithoutPanAndZoomTuning = function updateWithoutPanAndZoomTuning(source) {
+        if (treeSelectedElementAncestors == null) {
+          refreshTreeSelectedElementAncestors();
+        } // Compute the new tree layout.
+
+
+        var treeData = treemap(root);
+        var nodes = treeData.descendants(),
+            links = treeData.descendants().slice(1); // Normalize for fixed-depth.
+
+        nodes.forEach(function (d) {
+          d.y = d.depth * 180;
+        }); // ****************** Nodes section ***************************
+        // Update the nodes…
+
+        var node = vis.selectAll("g.node").data(nodes, function (d) {
+          return d.__d3js_id || (d.__d3js_id = ++id);
+        }); // Enter any new nodes at the parent's previous position.
+
+        var nodeEnter = node.enter().append("svg:g").attr("class", "node").attr("transform", function (d) {
+          return "translate(" + (source.y0 || source.y) + "," + (source.x0 || source.x) + ")";
+        }).on("dblclick", function () {
+          //stop doubleclick zoom effect
+          d3.event.stopPropagation();
+        }).on("click", function (d, i) {
+          handleClick(d);
+        });
+        nodeEnter.append("svg:text").text(textAccessor).style("fill-opacity", 1e-6);
+        nodeEnter.append("svg:text").text(textAccessor).style("fill-opacity", 1e-6);
+        nodeEnter.append("svg:circle").attr("r", 1e-6).attr("class", function (d) {
+          return (d._children || d.children ? "has-children " : " ") + additionalCSSClassForNode(d);
+        }).on("mouseover", function (d) {
+          if (!tooltipEnabled) return;
+          tooltipBuilder(d, tooltip);
+          var parentWidth = body._groups[0][0].clientWidth;
+          var tooltipWidth = tooltip._groups[0][0].clientWidth;
+          var tooltipX = d3.event.layerX + 20;
+          tooltip.interrupt().transition().duration(200).style("opacity", 1); //checking if the tooltip is cropped and moving it to the left
+
+          if (parentWidth < tooltipWidth + tooltipX) {
+            tooltipX = d3.event.layerX - 10 - tooltip._groups[0][0].clientWidth;
+          }
+
+          tooltip.style("left", tooltipX + "px").style("top", d3.event.layerY - 5 + "px");
+        }).on("mouseout", function (d) {
+          tooltip.transition().duration(200).style("opacity", 0);
+          tooltip.transition().delay(200).style("top", "-2000px");
+        }); // UPDATE
+
+        var nodeUpdate = nodeEnter.merge(node); // Transition nodes to their new position.
+
+        nodeUpdate.transition().duration(duration).attr("transform", function (d) {
+          minX = minX ? Math.min(minX, d.y) : d.y;
+          minY = minY ? Math.min(minY, d.x) : d.x;
+          maxX = maxX ? Math.max(maxX, d.y) : d.y;
+          maxY = maxY ? Math.max(maxY, d.x) : d.x;
+          return "translate(" + d.y + "," + d.x + ")";
+        });
+        nodeUpdate.select("circle").attr("r", 4.5).attr("class", function (d) {
+          if (isElementSelected(d, treeSelectedElement)) return "selected " + additionalCSSClassForNode(d);
+          return (d._children || d.children ? "has-children " : " ") + additionalCSSClassForNode(d);
+        });
+        nodeUpdate.selectAll("text").attr("x", function (d) {
+          return d.children ? -10 : 10;
+        }).attr("dy", function (d) {
+          return d.parent && d.children && d.parent.children.length == 1 ? "-0.2em" : ".35em";
+        }).attr("text-anchor", function (d) {
+          return d.children ? "end" : "start";
+        }).style("fill-opacity", '').style("font-size", '').attr("class", function (d) {
+          return isElementSelected(d, treeSelectedElement) ? "selected" : "";
+        }); // Transition exiting nodes to the parent's new position.
+
+        var nodeExit = node.exit().transition().duration(duration).attr("transform", function (d) {
+          return "translate(" + source.y0 + "," + source.x0 + ")";
+        }).remove();
+        nodeExit.select("circle").attr("r", 1e-6);
+        nodeExit.selectAll("text").style("font-size", '1px').style("fill-opacity", 1e-6); // ****************** links section ***************************
+        // Update the links…
+
+        var link = vis.selectAll("path.link").data(links, function (d) {
+          return d.__d3js_id;
+        }); // Transition exiting nodes to the parent's new position.
+        // Enter any new links at the parent's previous position.
+
+        var linkEnter = link.enter().insert("svg:path", "g").attr("data-id", function (d) {
+          return d.__d3js_id;
+        }).attr("d", function (d) {
+          var o = {
+            x: source.x0 || source.x,
+            y: source.y0 || source.y
+          };
+          return diagonal({
+            source: o,
+            target: o
+          });
+        }).attr("class", function (d) {
+          return "link " + additionalCSSClassForLink(d);
+        }); // UPDATE
+
+        var linkUpdate = linkEnter.merge(link); // Transition links to their new position.
+
+        linkUpdate.transition().duration(duration).attr('d', function (d) {
+          return diagonal({
+            source: d,
+            target: d.parent
+          });
+        }).attr("class", function (d) {
+          if ($.inArray(identifierAccessor(d), treeSelectedElementAncestors) > -1) return "link selected " + additionalCSSClassForLink(d);
+          return "link " + additionalCSSClassForLink(d);
+        });
+        var linkExit = link.exit().transition().duration(duration).attr("d", function (d) {
+          var o = {
+            x: source.x,
+            y: source.y
+          };
+          return diagonal({
+            source: o,
+            target: o
+          });
+        }).remove(); // Stash the old positions for transition.
+
+        nodes.forEach(function (d) {
+          d.x0 = d.x;
+          d.y0 = d.y;
+        });
+      }; //end of update(source)
+
+
+      if (data_url != null) {
+        update(root);
+        reset();
+        loadingDoneHandler();
+      }
+    }); //end of selection.each
+  } //end of function chart
+  // Toggle children.
+
+
+  function toggle(d) {
+    if (d.children) {
+      // collapse
+      d._children = d.children;
+      d.children = null;
+    } else {
+      // expand
+      d.children = d._children;
+      d._children = null;
+    }
+  } //end of toggle
+
+
+  function toggleForceExpand(d) {
+    if (d.children) return;
+    toggle(d);
+  } //end of toggleForceExpand
+
+
+  function toggleForceCollapse(d) {
+    if (d._children) return;
+    toggle(d);
+  } //end of toggleForceCollapse
+  //Handle selection of a node
+
+
+  function handleClick(d) {
+    if (d3.event.shiftKey && use_shift_to_open || d3.event.ctrlKey && use_control_to_open || d3.event.altKey && use_alt_to_open) {
+      openElementHandler(d);
+    } else if (d3.event.shiftKey && use_shift_to_add || d3.event.ctrlKey && use_control_to_add || d3.event.altKey && use_alt_to_add) {
+      var pos = treeSelectedElement.indexOf(d);
+
+      if (pos > -1) {
+        //removing ?
+        attemptToRemoveElement(d, pos);
+      } else {
+        //adding ?
+        attemptToSelectElement(d);
+      }
+    } else if (!d3.event.shiftKey && !d3.event.ctrlKey && !d3.event.altKey && d3.event.detail == 1) {
+      chart.cmd.clearSelectedElements(false);
+      toggle(d);
+      clickedElementHandler(d);
+    }
+
+    update(d);
+  } //end of handleClick
+
+
+  function attemptToRemoveElement(d, pos) {
+    if (typeof pos == "undefined" || pos == -1) pos = treeSelectedElement.indexOf(d);
+
+    if (removingElementHandler(d) != false) {
+      treeSelectedElement.splice(pos, 1);
+
+      if (d.duplicate) {
+        for (var i = pos; i < treeSelectedElement.length; i++) {
+          if (elementEquality(treeSelectedElement[i], d)) {
+            treeSelectedElement.splice(i, 1);
+            i--;
+          }
+        }
+      }
+
+      refreshTreeSelectedElementAncestors();
+    }
+  } //end of attemptToRemoveElement
+
+
+  function attemptToSelectElement(d) {
+    if (addingElementHandler(d) != false) {
+      if (d.duplicate) {
+        recursivePush(d, root);
+      } else {
+        treeSelectedElement.push(d);
+      }
+
+      refreshTreeSelectedElementAncestors();
+    }
+  } //end of attemptToSelectElement
+
+
+  function recursivePush(refElement, org) {
+    var i;
+    if (elementEquality(refElement, org)) treeSelectedElement.push(org);
+    if (org.children) for (i = 0; i < org.children.length; i++) {
+      recursivePush(refElement, org.children[i]);
+    }
+    if (org._children) for (i = 0; i < org._children.length; i++) {
+      recursivePush(refElement, org._children[i]);
+    }
+  } //end of recursivePush
+
+
+  function refreshTreeSelectedElementAncestors() {
+    treeSelectedElementAncestors = [];
+    var candidate;
+
+    for (var i = 0; i < treeSelectedElement.length; i++) {
+      candidate = treeSelectedElement[i];
+
+      while (candidate != null
+      /* && treeSelectedElementAncestors.indexOf(identifierAccessor(candidate))==-1*/
+      ) {
+        var id_candidate = identifierAccessor(candidate);
+        if ($.inArray(id_candidate, treeSelectedElementAncestors)) treeSelectedElementAncestors.push(id_candidate);
+        candidate = candidate.parent;
+      }
+    }
+  } //end of refreshTreeSelectedElementAncestors
+
+
+  function parenthood(element, parent) {
+    var node = identifierToElement[identifierAccessor(element)];
+
+    if (typeof node != "undefined") {
+      if (typeof node.duplicate == "undefined") node.duplicate = [node];
+      node.duplicate.push(element);
+      element.duplicate = node.duplicate;
+    } else {
+      identifierToElement[identifierAccessor(element)] = element;
+    }
+
+    element.parent = parent;
+
+    if (element.children) {
+      if (sortChildren) {
+        element.children.sort(function (a, b) {
+          a = textAccessor(a).toUpperCase();
+          b = textAccessor(b).toUpperCase();
+          if (a < b) return -1;
+          if (a > b) return 1;
+          return 0;
+        });
+      }
+
+      for (var i = 0; i < element.children.length; i++) {
+        parenthood(element.children[i], element);
+      }
+    }
+
+    if (initiallySelectedElementHandler(element)) {
+      treeSelectedElement.push(element);
+    }
+  } //end of function parenthood
+
+
+  function shouldRemoveThisElementsAsItHasNoSelectedDescendant(element) {
+    var b = true;
+
+    if (element.children) {
+      for (var i = 0; i < element.children.length; i++) {
+        if (shouldRemoveThisElementsAsItHasNoSelectedDescendant(element.children[i])) {
+          element.children.splice(i, 1);
+          i--;
+        } else {
+          b = false;
+        }
+      }
+
+      if (element.children.length == 0) {
+        element.children = null;
+      }
+    }
+
+    b = b && !initiallySelectedElementHandler(element);
+
+    if (b) {
+      element.children = null;
+      element._children = null;
+    }
+
+    return b;
+  } //end of function shouldRemoveThisElementsAsItHasNoSelectedDescendant
+
+
+  function browseToFromElement(identifier, element, selectedIt, expandToIt) {
+    var b = false;
+
+    if (identifier == identifierAccessor(element)) {
+      if (selectedIt) attemptToSelectElement(element);
+      return true;
+    }
+
+    var ch, i;
+
+    if (element.children) {
+      ch = element.children;
+
+      for (i = 0; i < ch.length; i++) {
+        if (browseToFromElement(identifier, ch[i], selectedIt, expandToIt)) {
+          if (expandToIt) toggleForceExpand(element);
+          b = true; //return true;
+        }
+      }
+    } else if (element._children) {
+      ch = element._children;
+
+      for (i = 0; i < ch.length; i++) {
+        if (browseToFromElement(identifier, ch[i], selectedIt, expandToIt)) {
+          if (expandToIt) toggleForceExpand(element);
+          b = true; //return true;
+        }
+      }
+    }
+
+    return b;
+  } //end of browseToFromElement
+
+
+  function isElementSelected(node) {
+    return $.inArray(node, treeSelectedElement) > -1;
+  } //end of isElementSelected
+
+
+  function collapseNotSelectedElement(node) {
+    var hasSelectedDescendant = false;
+
+    if (node.children) {
+      for (var i = 0; i < node.children.length; i++) {
+        if (collapseNotSelectedElement(node.children[i])) {
+          hasSelectedDescendant = true;
+        }
+      }
+    }
+
+    if (!hasSelectedDescendant) toggleForceCollapse(node);
+    if (isElementSelected(node)) return true;
+    return hasSelectedDescendant;
+  } //end of collapseNotSelectedElement
+
+
+  function expandSelectedElement(node) {
+    var hasSelectedDescendant = false;
+    var i;
+
+    if (node._children) {
+      for (i = 0; i < node._children.length; i++) {
+        if (expandSelectedElement(node._children[i])) {
+          hasSelectedDescendant = true;
+        }
+      }
+    } else if (node.children) {
+      for (i = 0; i < node.children.length; i++) {
+        if (expandSelectedElement(node.children[i])) {
+          hasSelectedDescendant = true;
+        }
+      }
+    }
+
+    if (hasSelectedDescendant) {
+      console.log("Ex:" + node);
+      toggleForceExpand(node);
+    }
+
+    if (isElementSelected(node)) return true;
+    return hasSelectedDescendant;
+  } //end of expandSelectedElement
+
+
+  function expandAllDescendantElement(node) {
+    var i,
+        children = node._children || node.children;
+
+    if (children) {
+      for (i = 0; i < children.length; i++) {
+        expandAllDescendantElement(children[i]);
+      }
+    }
+
+    toggleForceExpand(node);
+  } //end of expandAllElement
+
+
+  function getFartherAncestorCollapsed(node) {
+    var source = node;
+    var pointer = node;
+
+    while (pointer.parent) {
+      if (pointer._children) source = pointer;
+      pointer = pointer.parent;
+    }
+
+    return source;
+  } //end of getFartherAncestorCollapsed
+
+
+  function initTreeAndTriggerUpdate() {
+    treeSelectedElement = [];
+    treeSelectedElementAncestors = [];
+    metaInformationHandler(root.data.meta);
+    root.x0 = 0;
+    root.y0 = 0;
+    parenthood(root, null);
+    refreshTreeSelectedElementAncestors();
+
+    if (removeElementsWithNoSelectedDescendant) {
+      shouldRemoveThisElementsAsItHasNoSelectedDescendant(root);
+    }
+
+    collapseNotSelectedElement(root);
+
+    if (update) {
+      update(root);
+      loadingDoneHandler();
+      reset();
+    }
+  } //accessors
+
+
+  function cmd() {
+    return cmd;
+  }
+  /**
+   * Ask to collapse to element identified by identifier
+   * @param {string} identifier - the element identifier that is returned by identifierAccessor
+   * @return cmd() itself
+   */
+
+
+  cmd.collapseElement = function (identifier) {
+    toggleForceCollapse(identifierToElement[identifier]);
+    update(root);
+    return cmd;
+  };
+  /**
+   * Ask to expand an element
+   * @param {string} identifier - the element identifier that is returned by identifierAccessor
+   * @return cmd() itself
+   */
+
+
+  cmd.expandElement = function (identifier) {
+    var source = getFartherAncestorCollapsed(identifierToElement[identifier]);
+    browseToFromElement(identifier, root, false, true);
+    update(source);
+    return cmd;
+  };
+  /**
+   * Add/remove elements identified by the identifier depending of the boolean status, and expand to selected element(s) when asked
+   * @param {string} identifier - the element identifier that is returned by identifierAccessor
+   * @param {boolean} status - true to add, false to remove
+   * @param {boolean} [andExpand=true] - expand to selected element(s)
+   * @return cmd() itself
+   */
+
+
+  cmd.selectElement = function (identifier, status, andExpand) {
+    var node = identifierToElement[identifier];
+    if (typeof node == "undefined") return cmd;
+    var source = getFartherAncestorCollapsed(node);
+    if (status) browseToFromElement(identifier, root, true, typeof andExpand == "undefined" || andExpand);else attemptToRemoveElement(node);
+    update(source);
+    return cmd;
+  };
+  /**
+   *
+   * @param {string} identifier - the element identifier that is returned by identifierAccessor
+   * @return {boolean} true is the element is selected
+   */
+
+
+  cmd.isElementSelected = function (identifier) {
+    return isElementSelected(identifierToElement[identifier]);
+  };
+  /**
+   * Ask to de-select all elements
+   * @param {boolean} [redraw=true] - redraw the tree
+   * @return cmd() itself
+   */
+
+
+  cmd.clearSelectedElements = function (redraw) {
+    treeSelectedElement = [];
+    refreshTreeSelectedElementAncestors();
+    if (redraw != false) update(root);
+    return cmd;
+  };
+  /**
+   * Ask to collapse all elements that have no selected descendants
+   * @return cmd() itself
+   */
+
+
+  cmd.collapseNotSelectedElement = function () {
+    collapseNotSelectedElement(root);
+    update(root);
+    return cmd;
+  };
+  /**
+   * Ask to expand to all selected elements
+   * @return cmd() itself
+   */
+
+
+  cmd.expandSelectedElement = function () {
+    expandSelectedElement(root);
+    update(root);
+    return cmd;
+  };
+  /**
+   * Ask to expand to all selected elements
+   * @return cmd() itself
+   */
+
+
+  cmd.expandAllDescendantElement = function (identifier) {
+    console.log(identifierAccessor(root));
+    var node = identifierToElement[identifier] || root;
+    browseToFromElement(identifier, root, false, true);
+    expandAllDescendantElement(node);
+    update(node);
+    return cmd;
+  };
+  /**
+   * Return the element that have this identifier
+   * @return cmd() itself
+   */
+
+
+  cmd.getElementByIdentifier = function (identifier) {
+    return identifierToElement[identifier];
+  };
+  /**
+   * Iterate over ell the elements of the tree
+   * @return cmd() itself
+   */
+
+
+  cmd.forEachElement = function (fcn) {
+    $.each(identifierToElement, fcn);
+    return cmd;
+  };
+  /**
+   * Iterate over ell the elements of the tree
+   * @return cmd() itself
+   */
+
+
+  cmd.resetPanAndZoom = function () {
+    reset();
+    return cmd;
+  };
+  /**
+   * Zooming in and out with buttons
+   * @param {string} type Zooming type (in or out)
+   * @return cmd() itself
+   */
+
+
+  cmd.manualZoomInAndOut = function (type) {
+    manualZoom(type);
+    return cmd;
+  };
+  /**
+  *
+  * @param {Object[]} elements - the identifiers that should be visible after the call of this method
+  */
+
+
+  cmd.moveElementsIntoView = function (elements) {
+    moveElementsIntoView(elements);
+  }; // getter and setter functions. See Mike Bostocks post "Towards Reusable Charts" for a tutorial on how this works.
+
+
+  chart.cmd = cmd;
+  /**
+   * Accessor configuring the animation's duration
+   * @param {boolean} value
+   */
+
+  chart.duration = function (value) {
+    if (!arguments.length) return duration;
+    duration = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if debug message should be displayed
+   * @param {boolean} value
+   */
+
+
+  chart.debug = function (value) {
+    if (!arguments.length) return debug;
+    debug = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if the tooltip should be displayed
+   * @param {boolean} value
+   */
+
+
+  chart.tooltipEnabled = function (value) {
+    if (!arguments.length) return tooltipEnabled;
+    tooltipEnabled = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if the children should be sorted
+   * @param {boolean} value
+   */
+
+
+  chart.sortChildren = function (value) {
+    if (!arguments.length) return sortChildren;
+    sortChildren = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if shift key should be used to open externally an element
+   * @param {boolean} [value=false]
+   */
+
+
+  chart.use_shift_to_open = function (value) {
+    if (!arguments.length) return use_shift_to_open;
+    use_shift_to_open = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if alt control should be used to open externally an element
+   * @param {boolean} [value=true]
+   */
+
+
+  chart.use_control_to_open = function (value) {
+    if (!arguments.length) return use_control_to_open;
+    use_control_to_open = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if alt key should be used to open externally an element
+   * @param {boolean} [value=false]
+   */
+
+
+  chart.use_alt_to_open = function (value) {
+    if (!arguments.length) return use_alt_to_open;
+    use_alt_to_open = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if shift key should be used to add/remove an element to/from selection
+   * @param {boolean} [value=true]
+   */
+
+
+  chart.use_shift_to_add = function (value) {
+    if (!arguments.length) return use_shift_to_add;
+    use_shift_to_add = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if control key should be used to add/remove an element to/from selection
+   * @param {boolean} [value=false]
+   */
+
+
+  chart.use_control_to_add = function (value) {
+    if (!arguments.length) return use_control_to_add;
+    use_control_to_add = value;
+    return chart;
+  };
+  /**
+   * Accessor configuring if alt key should be used to add/remove an element to/from selection
+   * @param {boolean} [value=false]
+   */
+
+
+  chart.use_alt_to_add = function (value) {
+    if (!arguments.length) return use_alt_to_add;
+    use_alt_to_add = value;
+    return chart;
+  };
+  /**
+   * Accessor to the url where the json formatted tree can be found
+   * @param {string} value - a valid url
+   */
+
+
+  chart.data_url = function (value) {
+    if (!arguments.length) return data_url;
+    identifierToElement = {};
+    data_url = value;
+    (0, _edam2jsonJs.jsonTreeFromURL)(value, function (tree) {
+      localStorage.setItem("current_edam", JSON.stringify(tree));
+      (0, _utils.setCookie)("edam_url", value);
+      tree.meta.data_url = data_url;
+      chart.data(tree);
+    });
+  };
+  /**
+   * Accessor to the url where the json formatted tree can be found
+   * @param {string} value - a valid url
+   */
+
+
+  chart.data = function (value) {
+    if (!arguments.length) return root;
+    identifierToElement = {};
+    root = d3.hierarchy(preTreatmentOfLoadedTree(value), function (d) {
+      return d.children;
+    });
+    initTreeAndTriggerUpdate();
+    return chart;
+  };
+  /**
+   * Accessor to the method adding classed to nodes
+   * @param {function} value - an implementation of function (d){...} returning a class name(s)
+   */
+
+
+  chart.additionalCSSClassForNode = function (value) {
+    if (!arguments.length) return additionalCSSClassForNode;
+    additionalCSSClassForNode = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method adding classed to links
+   * @param {function} value - an implementation of function (d){...} returning a class name(s)
+   */
+
+
+  chart.additionalCSSClassForLink = function (value) {
+    if (!arguments.length) return additionalCSSClassForLink;
+    additionalCSSClassForLink = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method returning the text of an element (toString)
+   * @param {function} value - an implementation of function (a){...} returning the text
+   */
+
+
+  chart.textAccessor = function (value) {
+    if (!arguments.length) return textAccessor;
+    textAccessor = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method returning the identifier of an element
+   * @param {function} value - an implementation of function (a){...} returning the identifier
+   */
+
+
+  chart.identifierAccessor = function (value) {
+    if (!arguments.length) return identifierAccessor;
+    identifierAccessor = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method building the tooltip of an element
+   * @param {function} value - an implementation of function (d){...} returning the html code contained in the tooltip
+   */
+
+
+  chart.tooltipBuilder = function (value) {
+    if (!arguments.length) return tooltipBuilder;
+    tooltipBuilder = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method building the tooltip of an element
+   * @param {function} value - an implementation of function (d){...} returning the html code contained in the tooltip
+   */
+
+
+  chart.preTreatmentOfLoadedTree = function (value) {
+    if (!arguments.length) return preTreatmentOfLoadedTree;
+    preTreatmentOfLoadedTree = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method testing if an element is initially selected
+   * @param {function} value - an implementation of function (d){...} returning true if the element is initially selected
+   */
+
+
+  chart.initiallySelectedElementHandler = function (value) {
+    if (!arguments.length) return initiallySelectedElementHandler;
+    initiallySelectedElementHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method testing the validity of the selection of an element
+   * @param {function} value - an implementation of function (d){...} returning true if the element can be selected
+   */
+
+
+  chart.addingElementHandler = function (value) {
+    if (!arguments.length) return addingElementHandler;
+    addingElementHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method launch when an element have been requested to open externally
+   * @param {function} value - an implementation of function (d){...}
+   */
+
+
+  chart.openElementHandler = function (value) {
+    if (!arguments.length) return openElementHandler;
+    openElementHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method launch when an element have been clicked
+   * @param {function} value - an implementation of function (){...}
+   */
+
+
+  chart.clickedElementHandler = function (value) {
+    if (!arguments.length) return clickedElementHandler;
+    clickedElementHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method testing the validity of the deselection of an element
+   * @param {function} value - an implementation of function (d){...} returning true if the element can be deselected
+   */
+
+
+  chart.removingElementHandler = function (value) {
+    if (!arguments.length) return removingElementHandler;
+    removingElementHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method launch when the tree has been built
+   * @param {function} value - an implementation of function (){...}
+   */
+
+
+  chart.loadingDoneHandler = function (value) {
+    if (!arguments.length) return loadingDoneHandler;
+    loadingDoneHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method launch when a tree is being loaded with the meta information fetched from the root element
+   * @param {function} value - an implementation of function (meta){...}
+   */
+
+
+  chart.metaInformationHandler = function (value) {
+    if (!arguments.length) return metaInformationHandler;
+    metaInformationHandler = value;
+    return chart;
+  };
+  /**
+   * Accessor to the method testing equality between two nodes
+   * @param {function} value - an implementation of function (a,b){...} returning true if a and b are equals
+   */
+
+
+  chart.elementEquality = function (value) {
+    if (!arguments.length) return elementEquality;
+    elementEquality = value;
+    return chart;
+  };
+
+  return chart;
+};
+
+exports.interactive_tree = interactive_tree;
+},{"d3":"BG5c","./utils.js":"MgTz","edam2json-js":"PBS7"}],"IZXy":[function(require,module,exports) {
+"use strict";Object.defineProperty(exports,"__esModule",{value:true});exports["default"]=exports.gtag=exports.install=void 0;var install=function install(trackingId){var additionalConfigInfo=arguments.length>1&&arguments[1]!==undefined?arguments[1]:{};var scriptId="ga-gtag";if(document.getElementById(scriptId))return;var _document=document,head=_document.head;var script=document.createElement("script");script.id=scriptId;script.type="text/javascript";script.async=true;script.src="https://www.googletagmanager.com/gtag/js?id=".concat(trackingId);head.insertBefore(script,head.firstChild);window.dataLayer=window.dataLayer||[];gtag("js",new Date);gtag("config",trackingId,additionalConfigInfo)};exports.install=install;var gtag=function gtag(){window.dataLayer.push(arguments)};exports.gtag=gtag;var _default=gtag;exports["default"]=_default;
+},{}],"ppKG":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.typeDict = void 0;
+
+require("../jquery-import");
+
+require("bootstrap");
+
+require("jquery-ui-themes/themes/smoothness/jquery-ui.css");
+
+require("bootstrap/dist/css/bootstrap.css");
+
+require("@fortawesome/fontawesome-free/css/all.css");
+
+require("../css/bootstrap.xl.css");
+
+require("../css/autocomplete-edam-reusable.css");
+
+require("../css/edam.css");
+
+require("../css/dark-theme.css");
+
+require("regenerator-runtime/runtime");
+
+require("jquery-ui-bundle");
+
+var _utils = require("./utils.js");
+
+var _autocompleteEdamReusable2 = require("./autocomplete-edam-reusable.js");
+
+var browser;
+var typeDict = {
+  "has_topic_container": "topic",
+  "is_format_of_container": "data",
+  "has_input_container": "data",
+  "has_output_container": "data",
+  "is_identifier_of_container": "data"
+};
+exports.typeDict = typeDict;
+
+function fill_form(identifier, parent, branch) {
+  //not used, won't be used after loading from cache
+  //let tree_file = getTreeFile(branch);
+  (0, _autocompleteEdamReusable2.build_autocomplete_from_edam_browser)(browser, undefined, typeDict);
+  browser.interactive_tree.cmd.getElementByIdentifier(identifier);
+  build_form(browser.interactive_tree.cmd.getElementByIdentifier(identifier), browser.interactive_tree.cmd.getElementByIdentifier(parent));
+}
+
+function build_form(target, parentOfNewTerm) {
+  var v;
+
+  if (target) {
+    $("#id_label").val(v = target.text);
+    $("#id_label").attr('data-initial', v);
+    $("#id_definition").val(v = target.definition);
+    $("#id_definition").attr('data-initial', v);
+    $("#id_exactSynonyms").val(v = join_if_exists(target.exact_synonyms));
+    $("#id_exactSynonyms").attr('data-initial', v);
+    $("#id_narrowSynonyms").val(v = join_if_exists(target.narrow_synonyms));
+    $("#id_narrowSynonyms").attr('data-initial', v);
+    /*v=[];
+    for(var i=0;i<target.parent.length;i++){
+        v.push(target.parents[i].data.uri);
+    }
+    v=v.join("|");*/
+
+    var parents;
+    var i;
+
+    if (target.duplicate) {
+      parents = {};
+      parents[target.parent.data.uri] = target.parent;
+      $.each(target.duplicate, function (id, clone) {
+        parents[clone.parent.data.uri] = clone.parent;
+      });
+      parents = $.map(parents, function (value, key) {
+        return value;
+      });
+    } else {
+      parents = [target.parent];
+    }
+
+    $(".search-term[name=parent-0]").attr('data-initial', parents[0].data.uri);
+    $(".search-term[name=parent-0]").attr('data-selected', parents[0].data.uri);
+    $(".search-term[name=parent-0]").val(parents[0].text);
+
+    for (i = 1; i < parents.length; i++) {
+      addTermField("#parent_container", "parent", parents[i]);
+    }
+
+    for (i = 0; i < (target.has_topic || []).length; i++) {
+      addTermField("#has_topic_container", "has_topic", browser.interactive_tree.cmd.getElementByIdentifier(target.has_topic[i]));
+    }
+
+    for (i = 0; i < (target.is_format_of || []).length; i++) {
+      addTermField("#is_format_of_container", "is_format_of", browser.interactive_tree.cmd.getElementByIdentifier(target.is_format_of[i]));
+    }
+
+    for (i = 0; i < (target.has_input || []).length; i++) {
+      addTermField("#has_input_container", "has_input", browser.interactive_tree.cmd.getElementByIdentifier(target.has_input[i]));
+    }
+
+    for (i = 0; i < (target.has_output || []).length; i++) {
+      addTermField("#has_output_container", "has_output", browser.interactive_tree.cmd.getElementByIdentifier(target.has_output[i]));
+    }
+
+    for (i = 0; i < (target.is_identifier_of || []).length; i++) {
+      addTermField("#is_identifier_of_container", "is_identifier_of", browser.interactive_tree.cmd.getElementByIdentifier(target.is_identifier_of[i]));
+    }
+  } else {
+    $(".search-term").val(parentOfNewTerm.text);
+  } // toggle per-branch attributs
+
+
+  var s_branch = (0, _utils.getUrlParameter)('term') || (0, _utils.getUrlParameter)('parent');
+  s_branch = s_branch.substring(s_branch.lastIndexOf('/') + 1, s_branch.lastIndexOf('_'));
+
+  if (is_descendant_of_or_is(target || parentOfNewTerm, "http://edamontology.org/data_0842")) {
+    s_branch = "identifier";
+  }
+
+  $('.optional_rel').hide();
+  $('.' + s_branch + '_rel').show(); // unlock form
+
+  $("form [disabled=disabled]").attr("disabled", false);
+}
+
+function is_descendant_of_or_is(node, ancestor_identifier) {
+  if (browser.identifierAccessor(node) === ancestor_identifier) return true;
+  if (browser.identifierAccessor(node) === "owl:Thing") return false;
+  return is_descendant_of_or_is(node.parent, ancestor_identifier);
+}
+
+function join_if_exists(tab) {
+  if (typeof tab == "undefined") {
+    return "";
+  }
+
+  if (!Array.isArray(tab)) return tab;
+  return tab.join('; ');
+}
+
+window.addTermField = function addTermField(container, kind, initial_term) {
+  var i = $(container).find(".search-term").length;
+  $(".search-term[name=parent-0]").clone().attr("name", kind + "-" + i).insertBefore($(container).children("button"));
+  $(".search-term[name=" + kind + "-" + i + "]").val(initial_term ? initial_term.text : "").attr('data-initial', initial_term ? initial_term.data.uri : "").attr("data-selected", initial_term ? initial_term.data.uri : ""); //    build_autocomplete(
+  //        getTreeFile(getCookie("edam_browser_branch","topic")),
+
+  (0, _autocompleteEdamReusable2.build_autocomplete_from_edam_browser)(browser, ".search-term[name=" + kind + "-" + i + "]", typeDict);
+};
+
+var uri = "";
+var parent_uri = null;
+
+window.onload = function () {
+  (0, _utils.getDarkMode)();
+  uri = (0, _utils.getUrlParameter)('term');
+  var branch = (0, _utils.getUrlParameter)('branch');
+
+  if (uri) {
+    $('#pageTitle .new').hide();
+  } else {
+    $('#pageTitle .change').hide();
+  }
+
+  var sub_branch = (0, _utils.getUrlParameter)('term') + (0, _utils.getUrlParameter)('parent');
+  sub_branch = sub_branch.substring(sub_branch.lastIndexOf('/') + 1, sub_branch.lastIndexOf('_'));
+  $('#pageTitle .branch').text(sub_branch);
+  typeDict.parent_container = sub_branch;
+  browser = (0, _autocompleteEdamReusable2.fake_interactive_edam_browser)();
+  browser.interactive_tree.loadingDoneHandler(function () {
+    fill_form(uri, (0, _utils.getUrlParameter)('parent'), branch);
+  });
+  browser.current_branch((0, _utils.getUrlParameter)('branch'));
+};
+
+window.sendToGitHub = function sendToGitHub() {
+  var ids = ["#id_parent", "#id_label", "#id_definition", "#id_exactSynonyms", "#id_narrowSynonyms"];
+  var i;
+  $(".search-term").each(function () {
+    ids.push(".search-term[name=" + this.getAttribute("name") + "]");
+  });
+  var msg = "";
+  msg += "[//]: # (You can add comment regarding your issue hereafter)\n";
+
+  if ($("#id_github_comments").val()) {
+    msg += "### Comments\n";
+  }
+
+  msg += $("#id_github_comments").val();
+  msg += "\n\n";
+  msg += "[//]: # (End of issue comments)\n";
+  msg += "### Hereafter are the initial version and proposed modification of attributes of the given term\n";
+
+  for (i = 0; i < ids.length; i++) {
+    var val = $(ids[i]).attr('data-selected') || $(ids[i]).val();
+
+    if (val != $(ids[i]).attr('data-initial')) {
+      msg += "\n";
+      msg += "| key | value |\n";
+      msg += "| --- | --- |\n";
+      msg += "| Attr  | **" + $(ids[i]).attr('name') + "** |\n";
+      msg += "| Old | " + $(ids[i]).attr('data-initial') + " |\n";
+      msg += "| New | " + val + " |\n";
+      msg += "|  |  |\n";
+      msg += "\n";
+    }
+  }
+
+  if ($('#pageTitle .new:visible').length > 0) {
+    $("#sender [name=title]").val("[Edam Browser User] New child proposition for " + $("#id_parent").val());
+  } else {
+    $("#sender [name=title]").val("[Edam Browser User] Change proposition for " + uri);
+  }
+
+  $("#sender [name=body]").val(msg);
+  $("#sender").submit();
+};
+},{"../jquery-import":"WZAb","bootstrap":"jv0N","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","jquery-ui-bundle":"Hifx","./utils.js":"MgTz","./autocomplete-edam-reusable.js":"ZZY2"}],"ZZY2":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.fake_interactive_edam_browser = fake_interactive_edam_browser;
+exports.build_autocomplete_from_edam_browser = build_autocomplete_from_edam_browser;
+
+var _edit = require("./edit.js");
+
+function fake_interactive_edam_browser() {
+  var identifierToElement = {},
+      identifierAccessor = function identifierAccessor(d) {
+    return d.data.uri;
+  },
+      textAccessor = function textAccessor(d) {
+    if (typeof d.text == "undefined") return identifierAccessor(d);
+    if (d.text.constructor === Array) return d.text[0];
+    return d.text;
+  },
+      interactive_tree = function interactive_tree() {
+    return interactive_tree;
+  },
+      loadingDoneHandler = function loadingDoneHandler() {};
+
+  function buildIdentifierToElement(element, parent) {
+    element.parent = parent;
+
+    if (identifierAccessor(element) === "http://www.w3.org/2002/07/owl#DeprecatedClass") {
+      element.deprecated = true;
+    }
+
+    var node = identifierToElement[identifierAccessor(element)];
+
+    if (typeof node != "undefined") {
+      if (typeof node.duplicate == "undefined") node.duplicate = [];
+      node.duplicate.push(element);
+      element.duplicate = node.duplicate;
+    } else {
+      identifierToElement[identifierAccessor(element)] = element;
+    }
+
+    element.parent = parent;
+
+    for (var i = 0; i < (element.children || []).length; i++) {
+      if (element.deprecated) {
+        element.children[i].deprecated = true;
+      }
+
+      buildIdentifierToElement(element.children[i], element);
+    }
+  } //end of function buildIdentifierToElement
+
+  /**
+   * The browser
+   */
+
+
+  function browser() {}
+  /**
+   * Read-only accessor to the interactive tree
+   * @return {object} the tree
+   */
+
+
+  browser.interactive_tree = interactive_tree;
+  /**
+   * Accessor to the method launch when the tree has been built
+   * @param {function} value - an implementation of function (){...}
+   */
+
+  interactive_tree.loadingDoneHandler = function (value) {
+    if (!arguments.length) return loadingDoneHandler;
+    loadingDoneHandler = value;
+    return interactive_tree;
+  };
+  /**
+   * The tree's commands
+   */
+
+
+  function cmd() {
+    return cmd;
+  }
+
+  interactive_tree.cmd = cmd;
+  /**
+   * Return the element that have this identifier
+   * @return cmd() itself
+   */
+
+  cmd.getElementByIdentifier = function (identifier) {
+    return identifierToElement[identifier];
+  };
+  /**
+   * Iterate over ell the elements of the tree
+   * @return cmd() itself
+   */
+
+
+  cmd.forEachElement = function (fcn) {
+    $.each(identifierToElement, fcn);
+    return cmd;
+  };
+
+  cmd.selectElement = function () {};
+
+  cmd.clearSelectedElements = function () {};
+
+  cmd.moveElementsIntoView = function () {};
+  /**
+   * Read-only proxy to use the identifierAccessor of the interactive_tree
+   * @param {object} an element
+   * @return {object} the value return by the identifierAccessor for the given parameter
+   */
+
+
+  browser.identifierAccessor = identifierAccessor;
+  /**
+   * Read-only proxy to use the textAccessor of the interactive_tree
+   * @param {object} an element
+   * @return {object} the value return by the textAccessor for the given parameter
+   */
+
+  browser.textAccessor = textAccessor;
+  /**
+   * Get the current branch or load the branch given in parameter if it is not
+   * the current branch
+   * @param {string} value
+   */
+
+  browser.current_branch = function (value) {
+    var tree = JSON.parse(localStorage.getItem("current_edam"));
+    buildIdentifierToElement(tree, null);
+    loadingDoneHandler();
+    return browser;
+    /*$.ajax({
+        type: "GET",
+        dataType: "json",
+        url:getTreeFile(value),
+        data: {},
+        success: function (data, textStatus, xhr) {
+            buildIdentifierToElement(data, null);
+            loadingDoneHandler();
+        }
+    });
+    return browser;
+    };
+    return browser;*/
+  };
+
+  return browser;
+}
+/**
+* Build the autocomplete from the edam browser.
+* @param {object} the edam browser instance
+* @param {str} the target where we should build the autocomplete
+* @param {object} the filter dictionary (if a filter is applied)
+*/
+
+
+function build_autocomplete_from_edam_browser(edam_browser, elt, dict) {
+  if (typeof elt == "undefined") {
+    elt = '.search-term';
+  }
+
+  var t;
+  if ($(elt).data('ui-autocomplete') != undefined) $(elt).autocomplete("destroy");
+
+  function initIndex() {
+    edam_browser.interactive_tree().cmd().forEachElement(function (i, elt) {
+      var uri = edam_browser.identifierAccessor(elt);
+      var key = uri.substring(uri.lastIndexOf('/') + 1);
+      var values = [edam_browser.textAccessor(elt), key];
+      if (elt.data.definition) values.push(elt.data.definition);
+      if (elt.data.exact_synonyms) values = values.concat(elt.data.exact_synonyms);
+      if (elt.data.narrow_synonyms) values = values.concat(elt.data.narrow_synonyms);
+      elt.__autocomplete_from_edam_browser = values.join(' ').toUpperCase();
+    });
+  }
+
+  initIndex();
+
+  function span_matched(match) {
+    return '<span class="matched">' + match + '</span>';
+  }
+
+  $(elt).autocomplete({
+    source: function source(request, response) {
+      var data = [];
+      var tree = edam_browser.interactive_tree().cmd();
+      var terms = request.term.toUpperCase().split(" ");
+      tree.forEachElement(function (i, elt) {
+        if (typeof elt.__autocomplete_from_edam_browser == "undefined") initIndex();
+
+        for (var j = 0; j < terms.length; j++) {
+          if (elt.__autocomplete_from_edam_browser.indexOf(terms[j]) == -1) return;
+        }
+
+        data.push({
+          value: edam_browser.textAccessor(elt),
+          node: elt
+        });
+      }); //if a filter dictionary is applied
+
+      if (dict) {
+        //match type with the parent's container id
+        var type = _edit.typeDict[$(this.element).parent().attr('id')];
+
+        var matcher = new RegExp(type + '_', "i"); //apply type filter to data
+
+        data = data.filter(function filterCategories(item) {
+          return matcher.test(item.node.__autocomplete_from_edam_browser);
+        });
+      }
+
+      response(data);
+    },
+    minLength: 2,
+    select: function select(event, ui) {
+      // lors de la sélection d'une proposition
+      $(event.target).attr("data-selected", edam_browser.identifierAccessor(ui.item.node));
+      edam_browser.interactive_tree().cmd().clearSelectedElements(false);
+      edam_browser.interactive_tree().cmd.selectElement(edam_browser.identifierAccessor(ui.item.node), true);
+      edam_browser.interactive_tree().cmd.moveElementsIntoView([ui.item.node]);
+    },
+    response: function response(event, ui) {
+      if (typeof window.Levenshtein == "undefined") return;
+      var searched = $(event.target).val().toUpperCase(),
+          i;
+
+      for (i = 0; i < ui.content.length; i++) {
+        ui.content[i].lev = window.Levenshtein(ui.content[i].label.toUpperCase(), searched); //+ window.Levenshtein(ui.content[i].node.__autocomplete_from_edam_browser,searched) / 5;
+      }
+
+      ui.content.sort(function (a, b) {
+        return a.lev - b.lev;
+      });
+      ui.content.splice(20);
+    }
+  }).autocomplete("instance")._renderItem = function (ul, item) {
+    var identifier = edam_browser.identifierAccessor(item.node);
+    identifier = identifier.substring(identifier.lastIndexOf('/') + 1); //var branch = item.deprecated ? "deprecated" : identifier.substring(0,identifier.indexOf("_"));
+
+    var branch = identifier.substring(0, identifier.indexOf("_"));
+    var re = new RegExp($(elt).val(), 'ig');
+    return $("<li class=\"autocomplete-entry\">").append('<div>' + '<div>' + '<span style="">' + edam_browser.textAccessor(item.node).replace(re, span_matched) + '</span>' + '<span style="">' + '<span class="label label-info pull-right bg-edam-' + branch + '" title="' + branch + '">' + identifier.replace(re, span_matched) + '</span>' + (item.node.deprecated ? '<span class="label label-info pull-right bg-edam-deprecated">deprecated</span>' : '') + '</span>' + '</div>' + (item.node.data.definition ? '<div>' + item.node.data.definition.replace(re, span_matched) + '</div>' : "") + '</div>').appendTo(ul);
+  };
+
+  $(elt).prop('disabled', false);
+}
+},{"./edit.js":"ppKG"}],"Imcy":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.biotool_api = biotool_api;
+
+function biotool_api() {
+  function api() {}
+
+  function generic_counter(get_api_url, callback) {
+    return $.ajax({
+      url: get_api_url(),
+      type: "GET",
+      dataType: "json",
+      data: {},
+      success: function success(data, statut) {
+        callback(data.count, data, statut);
+      },
+      error: function error(textStatus, xhr) {
+        console.error(textStatus);
+        console.error(xhr);
+        data = {
+          'count': '0'
+        };
+        callback(data.count, data, textStatus);
+      }
+    });
+  } //end of generic_counter
+
+
+  function decorate_children_with_count(node, get_api_url, callback, suffix) {
+    var field_name = '__biotool_api_count' + (suffix || '');
+    var queue = [];
+    var job_length = 0; // recursive function that add in queue the element and all its descendant
+
+    var pusher = function pusher(n) {
+      queue.push(n);
+      var i;
+      if (typeof n[field_name] != "undefined") job_length--;
+
+      for (i = 0; i < (n._children || []).length; i++) {
+        pusher(n._children[i]);
+      }
+
+      for (i = 0; i < (n.children || []).length; i++) {
+        pusher(n.children[i]);
+      }
+    }; // run pusher, fill queue with all the elements
+
+
+    pusher(node);
+    job_length += queue.length; // create a callback caller that sum all descendant usage and call the actual callback
+
+    function call_callback() {
+      var total = 0,
+          total_d = {};
+      $.each(queue, function (i, e) {
+        total_d[e.data.data.uri] = e[field_name];
+      });
+
+      for (var key in total_d) {
+        total += total_d[key];
+      }
+
+      callback({
+        'descendants': queue.length,
+        'total': total
+      });
+    } // if nothing to do, just run the callback
+
+
+    if (job_length == 0) call_callback(); // create function that will call generic_counter not for the current elements, but an element passed as arg
+
+    var generic_counter_for_this_i = function generic_counter_for_this_i(j) {
+      generic_counter(function () {
+        // get the api url for the focused elements
+        return get_api_url(queue[j].data.data.uri);
+      }, function (data, count, status) {
+        // decorate the element with the count returned by bio.tools
+        queue[j][field_name] = count.count;
+
+        if (job_length == 1) {
+          // when we are the last job, run the callback
+          call_callback();
+        }
+
+        job_length--;
+      });
+    };
+
+    for (var i = 0; i < queue.length; i++) {
+      if (typeof queue[i][field_name] == "undefined") // for each element, run the custom generic_counter
+        generic_counter_for_this_i(i);
+    }
+  } //end of decorate_children_with_count
+  //getter for nothing
+
+
+  var get_for_nothing = function get_for_nothing(name) {
+    var getter = function getter() {};
+
+    getter.count = function (callback) {};
+
+    getter.is_enabled = function () {
+      return false;
+    };
+
+    getter.get_url = function () {};
+
+    getter.get_api_url = function () {};
+
+    return getter;
+  }; //end of function get_for_nothing
+  // generic getter
+
+
+  api.get_for = function (branch, name, uri, node) {
+    if (typeof name == "undefined") return get_for_nothing(); //name=name.toLowerCase();
+
+    if (branch == "deprecated") branch = uri.substring(uri.lastIndexOf("/") + 1, uri.lastIndexOf("_"));
+    if (branch == "topic" || branch.indexOf('edam') != -1 && uri.indexOf('topic') != -1) return api.get_for_topic(name, uri, node);
+    if (branch == "operation" || branch.indexOf('edam') != -1 && uri.indexOf('operation') != -1) return api.get_for_operation(name, uri, node);
+    if (branch == "format" || branch.indexOf('edam') != -1 && uri.indexOf('format') != -1) return api.get_for_format(name, uri, node);
+    if (branch == "data" || branch.indexOf('edam') != -1 && uri.indexOf('data') != -1) return api.get_for_data(name, uri, node);
+    return get_for_nothing();
+  }; //end of function get_for
+  //getter for term with single usage (tagging)
+
+
+  var get_for_single_search = function get_for_single_search(uiKey, apiKey) {
+    return function (name, uri, node) {
+      var identifier = uri.substring(uri.lastIndexOf("/") + 1); //getter object
+
+      var getter = function getter() {}; //function to count the number of tools associated
+
+
+      getter.count = function (callback) {
+        return generic_counter(getter.get_api_url, callback);
+      }; //function to count the number of tools associated including descendants
+
+
+      getter.count_with_descendants = function (callback) {
+        return decorate_children_with_count(node, getter.get_api_url, callback);
+      }; //is the count function enabled
+
+
+      getter.is_enabled = function () {
+        return true;
+      }; //get the url returning the tools for human
+
+
+      getter.get_url = function () {
+        return "https://bio.tools/t?" + uiKey + "=%22" + identifier + "%22";
+      }; //get the url returning the tools for api call
+
+
+      getter.get_api_url = function (value) {
+        // use value when provided, otherwise user uri
+        return "https://bio.tools/api/tool/?format=json&" + apiKey + "=%22" + (value || uri) + "%22";
+      };
+
+      return getter;
+    };
+  }; //end of function get_for_single_search
+
+
+  api.get_for_topic = get_for_single_search("topicID", "topicID");
+  api.get_for_operation = get_for_single_search("operationID", "operationID"); //getter for term with two usage (input and output)
+
+  var get_for_double_search = function get_for_double_search(uiInKey, uiOutKey, apiInKey, apiOutKey) {
+    return function (name, uri, node) {
+      var identifier = uri.substring(uri.lastIndexOf("/") + 1); //getter object
+
+      var getter = function getter() {}; //function to count the number of tools associated
+
+
+      getter.count = function (callback) {
+        return generic_counter(function () {
+          return getter.get_api_url()[0];
+        }, function (cpt_in, data_in) {
+          generic_counter(function () {
+            return getter.get_api_url()[1];
+          }, function (cpt_out, data_out) {
+            callback([cpt_in, cpt_out], [data_in, data_out]);
+          });
+        });
+      }; //function to count the number of tools associated including descendants
+
+
+      getter.count_with_descendants = function (callback) {
+        return decorate_children_with_count(node, function (value) {
+          return getter.get_api_url(value)[0];
+        }, function (res_input) {
+          decorate_children_with_count(node, function (value) {
+            return getter.get_api_url(value)[1];
+          }, function (res_output) {
+            callback({
+              'input': res_input,
+              'output': res_output
+            });
+          }, "_ouput");
+        }, "_input");
+      }; //is the count function enabled
+
+
+      getter.is_enabled = function () {
+        return true;
+      }; //get the url returning the tools for human
+
+
+      getter.get_url = function () {
+        return ["https://bio.tools/t?" + uiInKey + "=%22" + identifier + "%22", "https://bio.tools/t?" + uiOutKey + "=%22" + identifier + "%22"];
+      }; //get the url returning the tools for api call
+
+
+      getter.get_api_url = function (value) {
+        // use value when provided, otherwise user uri
+        return ["https://bio.tools/api/tool/?format=json&" + apiInKey + "=%22" + (value || uri) + "%22", "https://bio.tools/api/tool/?format=json&" + apiOutKey + "=%22" + (value || uri) + "%22"];
+      };
+
+      return getter;
+    };
+  }; //end of function get_for_double_search
+
+
+  api.get_for_data = get_for_double_search("inputDataTypeID", "outputDataTypeID", "inputDataTypeID", "outputDataTypeID");
+  api.get_for_format = get_for_double_search("inputID", "outputID", "inputDataFormatID", "outputDataFormatID");
+  return api;
+}
+},{}],"vm1S":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.biosphere_api = biosphere_api;
+
+if (typeof String.prototype.localeCompare === 'undefined') {
+  String.prototype.localeCompare = function (str, locale, options) {
+    return this == str ? 0 : this > str ? 1 : -1;
+  };
+}
+
+function biosphere_api() {
+  function api() {} //getter for nothing
+
+
+  var get_for_nothing = function get_for_nothing(name) {
+    var getter = function getter() {};
+
+    getter.count = function (callback) {};
+
+    getter.is_enabled = function () {
+      return false;
+    };
+
+    getter.get_url = function () {};
+
+    getter.get_api_url = function () {};
+
+    return getter;
+  }; // generic getter
+
+
+  api.get_for = function (branch, name, uri, node) {
+    if (uri.indexOf("edam") == -1) return get_for_nothing();
+    var term_id = uri.substring(uri.lastIndexOf("/") + 1);
+    branch = term_id.substring(0, term_id.lastIndexOf("_"));
+    var number = term_id.substring(term_id.lastIndexOf("_") + 1); //getter object
+
+    var getter = function getter() {}; //function to count the number of tools associated
+
+
+    getter.count = function (callback) {
+      return $.ajax({
+        url: getter.get_api_url(),
+        type: "GET",
+        dataType: "json",
+        data: {},
+        headers: {
+          'X-Requested-With': 'https://github.com/IFB-ElixirFr/edam-browser'
+        },
+        success: function success(data, statut) {
+          var appliances_row = data.content.split("href=\"/catalogue/appliance/");
+          var tools_row = data.content.split("href=\"/catalogue/tool/");
+          var appliances = [];
+          var tools = [];
+          var i;
+
+          for (i = 1; i < appliances_row.length; i++) {
+            appliances.push(appliances_row[i].match(/[^>]*>([^<]*)[<]/)[1].trim());
+          }
+
+          for (i = 1; i < tools_row.length; i++) {
+            tools.push(tools_row[i].match(/[^>]*>([^<]*)[<]/)[1].trim());
+          }
+
+          callback([appliances.length, tools.length], [appliances.sort(function (a, b) {
+            return a.localeCompare(b);
+          }), tools.sort(function (a, b) {
+            return a.localeCompare(b);
+          })], statut);
+        },
+        error: function error(textStatus, xhr) {
+          console.error(textStatus);
+          console.error(xhr);
+          callback(-1, [], textStatus);
+        }
+      });
+    }; //is the count function enabled
+
+
+    getter.is_enabled = function () {
+      return true;
+    }; //get the url returning the tools for human
+
+
+    getter.get_url = function () {
+      return "https://biosphere.france-bioinformatique.fr/edamontology/" + branch + "/" + number + "/";
+    }; //get the url returning the tools for api call
+
+
+    getter.get_api_url = function () {
+      return getter.get_url() + "?media=json&included=True";
+    };
+
+    return getter;
+  }; //getter for topics
+
+
+  api.get_for_topic = function (name) {
+    return api.get_for("topic", name);
+  }; //getter for operations
+
+
+  api.get_for_operation = function (name) {
+    return get_for_nothing();
+  }; //getter for data
+
+
+  api.get_for_data = function (name) {
+    return get_for_nothing();
+  }; //getter for format
+
+
+  api.get_for_format = function (name) {
+    return get_for_nothing();
+  };
+
+  return api;
+}
+},{}],"gGT0":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.bioweb_api = bioweb_api;
+
+if (typeof String.prototype.localeCompare === 'undefined') {
+  String.prototype.localeCompare = function (str, locale, options) {
+    return this == str ? 0 : this > str ? 1 : -1;
+  };
+}
+
+function bioweb_api() {
+  function api() {} //getter for nothing
+
+
+  var get_for_nothing = function get_for_nothing(name) {
+    var getter = function getter() {};
+
+    getter.count = function (callback) {};
+
+    getter.is_enabled = function () {
+      return false;
+    };
+
+    getter.get_url = function () {};
+
+    getter.get_api_url = function () {};
+
+    return getter;
+  }; // generic getter
+
+
+  api.get_for = function (branch, name, uri, node) {
+    var term_id = uri.substring(uri.lastIndexOf("/") + 1);
+    if (branch == "deprecated") branch = term_id.substring(0, uri.lastIndexOf("_"));
+    if (branch != "topic" && (branch.indexOf('edam') == -1 || uri.indexOf('topic') == -1)) return get_for_nothing(); //getter object
+
+    var getter = function getter() {}; //function to count the number of tools associated
+
+
+    getter.count = function (callback) {
+      return $.ajax({
+        url: getter.get_api_url(),
+        type: "GET",
+        dataType: "json",
+        data: {},
+        headers: {
+          'X-Requested-With': 'https://github.com/IFB-ElixirFr/edam-browser'
+        },
+        success: function success(data, statut) {
+          callback(data.length, data.sort(function (a, b) {
+            return a.name.localeCompare(b.name);
+          }), statut);
+        },
+        error: function error(textStatus, xhr) {
+          console.error(textStatus);
+          console.error(xhr);
+          callback(-1, [], textStatus);
+        }
+      });
+    }; //is the count function enabled
+
+
+    getter.is_enabled = function () {
+      return false;
+    }; //get the url returning the tools for human
+
+
+    getter.get_url = function () {
+      return "https://bioweb.pasteur.fr/packages/topics/" + term_id;
+    }; //get the url returning the tools for api call
+
+
+    getter.get_api_url = function () {
+      return "https://cors-anywhere.pasteur.cloud/https://bioweb.pasteur.fr/api/packages?search=&topicId=" + term_id;
+    };
+
+    return getter;
+  }; //getter for topics
+
+
+  api.get_for_topic = function (name) {
+    return api.get_for("topic", name);
+  }; //getter for operations
+
+
+  api.get_for_operation = function (name) {
+    return get_for_nothing();
+  }; //getter for data
+
+
+  api.get_for_data = function (name) {
+    return get_for_nothing();
+  }; //getter for format
+
+
+  api.get_for_format = function (name) {
+    return get_for_nothing();
+  };
+
+  return api;
+}
+},{}],"KEE6":[function(require,module,exports) {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.tess_api = tess_api;
+
+function tess_api() {
+  function api() {} //getter for nothing
+
+
+  var get_for_nothing = function get_for_nothing(name) {
+    var getter = function getter() {};
+
+    getter.count = function (callback) {};
+
+    getter.is_enabled = function () {
+      return false;
+    };
+
+    getter.get_url = function () {};
+
+    getter.get_api_url = function () {};
+
+    return getter;
+  }; // generic getter
+
+
+  api.get_for = function (branch, name, uri, node) {
+    if (uri.indexOf("edam") == -1) return get_for_nothing(); //getter object
+
+    var getter = function getter() {}; //function to count the number of tools associated
+
+
+    getter.count = function (callback) {
+      return $.ajax({
+        url: getter.get_api_url(),
+        type: "GET",
+        dataType: "json",
+        data: {},
+        success: function success(data, statut) {
+          callback(data.length, data, statut);
+        },
+        error: function error(textStatus, xhr) {
+          console.error(textStatus);
+          console.error(xhr);
+          callback(-1, [], textStatus);
+        }
+      });
+    }; //is the count function enabled
+
+
+    getter.is_enabled = function () {
+      return typeof name != "undefined";
+    }; //get the url returning the tools for human
+
+
+    getter.get_url = function () {
+      return "https://tess.elixir-europe.org/materials?scientific_topics=" + name.replace(/ /g, '+');
+    }; //get the url returning the tools for api call
+
+
+    getter.get_api_url = function () {
+      return "https://tess.elixir-europe.org/materials.json?scientific_topics=" + name.replace(/ /g, '+');
+    };
+
+    return getter;
+  }; //getter for topics
+
+
+  api.get_for_topic = function (name) {
+    return api.get_for("topic", name);
+  }; //getter for operations
+
+
+  api.get_for_operation = function (name) {
+    return api.get_for("operation", name);
+  }; //getter for data
+
+
+  api.get_for_data = function (name) {
+    return api.get_for("data", name);
+  }; //getter for format
+
+
+  api.get_for_format = function (name) {
+    return api.get_for("format", name);
+  };
+
+  return api;
+}
+},{}],"qsCb":[function(require,module,exports) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -73822,7 +73803,9 @@ var _biowebApi = require("./bioweb.api.js");
 
 var _tessApi = require("./tess.api.js");
 
-var _edam2jsonJs = require("edam2json-js");
+var _index = require("./index.js");
+
+var customRe = new RegExp("^(http|https)://", "i");
 
 function getInitURI(branch) {
   if (branch == "deprecated") return (0, _utils.getCookie)("edam_browser_" + branch, "http://www.w3.org/2002/07/owl#DeprecatedClass");
@@ -73859,49 +73842,93 @@ function interactive_edam_browser() {
       identifier_accessor_mapping = {},
       text_accessor_mapping = {};
 
-  function loadTree(branch, tree, isVersion) {
+  function loadTree(branch, tree, version) {
+    var tree_url;
     $("#edam-branches .branch").removeClass("active");
 
-    if (typeof branch == "undefined") {
+    if (typeof branch == "undefined" || branch == "" || branch == 'undefined') {
       branch = (0, _utils.getCookie)("edam_browser_branch", "topic");
+      if (branch == 'undefined') branch = 'edam';
     }
 
     $("#edam-branches .branch." + branch).addClass("active");
-    (0, _utils.setCookie)("edam_browser_branch", branch);
-    current_branch = branch;
-    var tree_file = ""; //let tree_file=getTreeFile(branch);
-    //if(tree_file==""){
-    //__my_interactive_tree.data(tree);
-    //build_autocomplete_from_tree(tree)
-    //}else{
+    (0, _index.updateVersion)(version);
+    (0, _index.updateBranch)(branch); //setCookie("edam_browser_branch",branch);
 
-    __my_interactive_tree.data_url(tree_file, tree, isVersion); //build_autocomplete(tree_file);
-    //}
+    current_branch = branch; //get tree from cache (either same version or a subset request)
 
+    if (!version || version == (0, _utils.getCookie)("edam_version", "")) {
+      tree = JSON.parse(localStorage.getItem("current_edam"));
+
+      if (!tree) {
+        version = 'stable';
+        tree_url = getTreeURL(version);
+
+        __my_interactive_tree.data_url(tree_url);
+
+        (0, _utils.setCookie)("edam_version", version);
+      }
+
+      __my_interactive_tree.data(tree);
+    } //load version (pre-determined or custom)
+    else {
+      (0, _utils.setCookie)("edam_version", version); //in case we're passed the raw url link directly
+
+      if (customRe.test(version)) {
+        tree_url = version;
+        (0, _utils.setCookie)("edam_version", tree_url);
+      } else {
+        tree_url = getTreeURL(version);
+      }
+
+      if (version == 'custom') {
+        version = tree_url;
+        (0, _utils.setCookie)("edam_version", version);
+      }
+
+      var uri = __my_interactive_tree.cmd.getElementByIdentifier(getInitURI(current_branch));
+
+      if (uri) {
+        uri = __my_interactive_tree.identifierAccessor()(uri);
+        var params = "";
+
+        if (version != "stable") {
+          params += "&version=" + version;
+        }
+
+        if (current_branch != "edam") {
+          params += "&branch=" + current_branch;
+        }
+
+        window.location.hash = uri.replace("http://edamontology.org/", "") + params;
+      }
+
+      __my_interactive_tree.data_url(tree_url);
+    }
 
     (0, _autocompleteEdamReusable.build_autocomplete_from_edam_browser)(browser);
-  }
-
-  function loadVersion(branch, version) {
-    var versionFile;
-    versionFile = "https://raw.githubusercontent.com/edamontology/edamontology/main/releases/EDAM_" + version + ".owl";
-    if (version == 'latest') versionFile = "https://raw.githubusercontent.com/edamontology/edamontology/main/EDAM_dev.owl";
-    (0, _edam2jsonJs.jsonTreeFromURL)(versionFile, function (tree) {
-      localStorage.setItem("current_edam", JSON.stringify(tree));
-      (0, _utils.setCookie)("edam_version", version);
-      (0, _utils.setCookie)("edam_url", versionFile);
-      loadTree(branch, tree, true);
-    });
   }
 
   function loadCustomVersion() {
     $("#versionModal").modal('hide');
     var versionURL = document.getElementById('version_url').value;
-    (0, _edam2jsonJs.jsonTreeFromURL)(versionURL, function (tree) {
-      localStorage.setItem("current_edam", JSON.stringify(tree));
-      (0, _utils.setCookie)("edam_url", versionURL);
-      loadTree("edam", tree, true);
-    });
+    (0, _utils.setCookie)("edam_version", versionURL);
+  }
+
+  function getTreeURL(version) {
+    switch (version) {
+      case 'latest':
+        return "https://raw.githubusercontent.com/edamontology/edamontology/main/EDAM_dev.owl";
+
+      case 'custom':
+        return (0, _utils.getCookie)("custom_version", "");
+
+      case 'stable':
+        return "https://raw.githubusercontent.com/edamontology/edamontology/main/releases/EDAM_1.25.owl";
+
+      default:
+        return "https://raw.githubusercontent.com/edamontology/edamontology/main/releases/EDAM_" + version + ".owl";
+    }
   }
 
   function selectCustom() {
@@ -74044,8 +74071,19 @@ function interactive_edam_browser() {
 
     var branch_of_term = get_branch_of_term(uri);
     (0, _utils.setCookie)("edam_browser_" + current_branch, uri);
+    var version = (0, _utils.getCookie)("edam_version", 'stable');
     var identifier = uri.substring(uri.lastIndexOf('/') + 1).replace(/[^a-zA-Z_0-9]/g, '-').toLowerCase().replace(/[-]+/g, '-');
-    window.location.hash = uri.replace("http://edamontology.org/", "") + (current_branch != "edam" ? "&" + current_branch : "");
+    var params = "";
+
+    if (version != "stable") {
+      params += "&version=" + version;
+    }
+
+    if (current_branch != "edam") {
+      params += "&branch=" + current_branch;
+    }
+
+    window.location.hash = uri.replace("http://edamontology.org/", "") + params;
 
     if (current_branch != "custom_url" && window.location.search) {
       (0, _utils.setUrlParameters)("");
@@ -74569,12 +74607,7 @@ function interactive_edam_browser() {
 
     __my_interactive_tree.textAccessor(textAccessorDefault);
 
-    if (version) {
-      loadVersion(value, version);
-    } else {
-      loadTree(value);
-    }
-
+    loadTree(value, "", version);
     return browser;
   };
   /**
@@ -74632,8 +74665,13 @@ window.cpyToClipboard = function cpyToClipboard(value) {
     $(element).tooltip('destroy');
   }, 1000);
 };
-},{"./utils.js":"MgTz","./tree-reusable-d3":"kypQ","./autocomplete-edam-reusable.js":"ZZY2","./bio.tools.api.js":"Imcy","./biosphere.api.js":"vm1S","./bioweb.api.js":"gGT0","./tess.api.js":"KEE6","edam2json-js":"PBS7"}],"QvaY":[function(require,module,exports) {
+},{"./utils.js":"MgTz","./tree-reusable-d3":"kypQ","./autocomplete-edam-reusable.js":"ZZY2","./bio.tools.api.js":"Imcy","./biosphere.api.js":"vm1S","./bioweb.api.js":"gGT0","./tess.api.js":"KEE6","./index.js":"QvaY"}],"QvaY":[function(require,module,exports) {
 "use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.updateVersion = exports.updateBranch = void 0;
 
 require("../jquery-import.js");
 
@@ -74678,6 +74716,7 @@ function _getRequireWildcardCache(nodeInterop) { if (typeof WeakMap !== "functio
 function _interopRequireWildcard(obj, nodeInterop) { if (!nodeInterop && obj && obj.__esModule) { return obj; } if (obj === null || typeof obj !== "object" && typeof obj !== "function") { return { default: obj }; } var cache = _getRequireWildcardCache(nodeInterop); if (cache && cache.has(obj)) { return cache.get(obj); } var newObj = {}; var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor; for (var key in obj) { if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) { var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null; if (desc && (desc.get || desc.set)) { Object.defineProperty(newObj, key, desc); } else { newObj[key] = obj[key]; } } } newObj.default = obj; if (cache) { cache.set(obj, newObj); } return newObj; }
 
 window.interactive_tree = _treeReusableD2.interactive_tree;
+var customRe = new RegExp("^(http|https)://", "i");
 var browser = (0, _treeEdamStandAlone.interactive_edam_browser)(); //enabling access from html to the browser variable
 
 window.browser = browser;
@@ -74685,14 +74724,13 @@ window.browser = browser;
 window.onload = function () {
   configGtag();
   (0, _utils.getDarkMode)();
-  var id;
+  var id, branch, version;
   var $inputs = $('#id_file,#id_url');
   $inputs.on('input', function () {
     $inputs.not(this).prop('disabled', $(this).val().length);
   }).on('change', function () {
     $inputs.not(this).prop('disabled', $(this).val().length);
   });
-  var branch;
 
   if (typeof (0, _utils.getUrlParameter)("url") != "undefined") {
     (0, _utils.setCookie)("edam_browser_branch", branch);
@@ -74722,8 +74760,14 @@ window.onload = function () {
     var _pos = hash.lastIndexOf('&');
 
     if (_pos != -1) {
-      id = hash.substring(0, _pos);
-      branch = hash.substring(_pos + 1);
+      id = hash.substring(0, hash.indexOf('&'));
+      var params = hash.split('&').reduce(function (res, item) {
+        var parts = item.split('=');
+        res[parts[0]] = parts[1];
+        return res;
+      }, {});
+      branch = params['branch'];
+      version = params['version'];
     } else {
       //only home-EDAM arrives here, so ok to work with edam
       //id=branch;
@@ -74748,7 +74792,7 @@ window.onload = function () {
     }
   }
 
-  (0, _utils.setCookie)("edam_version", '1.25');
+  (0, _utils.setCookie)("edam_version", 'stable');
   d3.select("#tree").call(browser.interactive_tree()); // draw chart in div
 
   if (branch == "custom_file") {
@@ -74756,7 +74800,7 @@ window.onload = function () {
   } else if (branch == "custom_url") {
     browser.cmd.loadCustom();
   } else {
-    browser.current_branch(branch, '1.25');
+    browser.current_branch(branch, version);
   }
 
   var treeElement = document.getElementById("tree-and-controls");
@@ -74815,5 +74859,43 @@ var configGtag = function configGtag() {
   gtag('js', new Date());
   gtag('config', 'UA-115521967-1');
 };
+
+var updateVersion = function updateVersion(version) {
+  var _$$index;
+
+  var versionDict = {
+    "custom": 4,
+    "latest": 3,
+    "stable": 0,
+    "1.24": 1,
+    "1.23": 2
+  };
+  var index;
+  if (customRe.test(version)) index = versionDict["custom"];else if (version == "undefined") index = versionDict["stable"];else index = versionDict[version];
+  var text = (_$$index = $(".version-group .dropdown-menu li a")[index]) === null || _$$index === void 0 ? void 0 : _$$index.innerText;
+  $('.version-title').html(text);
+};
+
+exports.updateVersion = updateVersion;
+
+var updateBranch = function updateBranch(branch) {
+  var _$$index2;
+
+  var branchDict = {
+    "edam": 0,
+    "data": 1,
+    "format": 2,
+    "operation": 3,
+    "topic": 4,
+    "deprecated": 5,
+    "edam_w_deprecated": 6
+  };
+  var index;
+  if (version == "undefined") index = branchDict["edam"];else index = branchDict[branch];
+  var text = (_$$index2 = $(".branch-group .dropdown-menu li a")[index]) === null || _$$index2 === void 0 ? void 0 : _$$index2.innerText;
+  $('.branch-title').html(text);
+};
+
+exports.updateBranch = updateBranch;
 },{"../jquery-import.js":"WZAb","popper.js":"v5IM","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","jquery-ui-bundle":"Hifx","bootstrap":"jv0N","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/tree-reusable-d3.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/index.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","d3":"BG5c","./tree-reusable-d3.js":"kypQ","ga-gtag":"IZXy","./utils.js":"MgTz","./tree-edam-stand-alone.js":"qsCb"}]},{},["QvaY"], null)
-//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.41968b93.js.map
+//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.abfc477f.js.map

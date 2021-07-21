@@ -33117,8 +33117,7 @@ function fake_interactive_edam_browser() {
    */
 
   browser.current_branch = function (value) {
-    //should be replaced with loading from cache
-    var tree = localStorage.getItem("current_edam");
+    var tree = JSON.parse(localStorage.getItem("current_edam"));
     buildIdentifierToElement(tree, null);
     loadingDoneHandler();
     return browser;
@@ -33379,6 +33378,7 @@ function join_if_exists(tab) {
     return "";
   }
 
+  if (!Array.isArray(tab)) return tab;
   return tab.join('; ');
 }
 
@@ -33459,4 +33459,4 @@ window.sendToGitHub = function sendToGitHub() {
   $("#sender").submit();
 };
 },{"../jquery-import":"WZAb","bootstrap":"jv0N","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/autocomplete-edam-reusable.css":"rRbR","../css/edam.css":"OqgZ","../css/dark-theme.css":"nl6s","regenerator-runtime/runtime":"KA2S","jquery-ui-bundle":"Hifx","./utils.js":"MgTz","./autocomplete-edam-reusable.js":"ZZY2"}]},{},["ppKG"], null)
-//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/edit.4b6116d8.js.map
+//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/edit.2d19cd63.js.map
