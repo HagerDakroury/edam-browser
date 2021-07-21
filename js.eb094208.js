@@ -73860,7 +73860,7 @@ function interactive_edam_browser() {
 
     current_branch = branch; //get tree from cache (either same version or a subset request)
 
-    if (!version || version == (0, _utils.getCookie)("edam_version", "")) {
+    if (!version || version == (0, _utils.getCookie)("edam_version", "stable")) {
       tree = JSON.parse(localStorage.getItem("current_edam"));
 
       if (!tree) {
@@ -73875,17 +73875,18 @@ function interactive_edam_browser() {
       __my_interactive_tree.data(tree);
     } //load version (pre-determined or custom)
     else {
-      (0, _utils.setCookie)("edam_version", version); //in case we're passed the raw url link directly
-
+      //in case we're passed the raw url link directly
       if (customRe.test(version)) {
         tree_url = version;
-        (0, _utils.setCookie)("edam_version", tree_url);
+        console.log(tree_url);
       } else {
         tree_url = getTreeURL(version);
+        (0, _utils.setCookie)("edam_version", version);
       }
 
       if (version == 'custom') {
         version = tree_url;
+        console.log(version);
         (0, _utils.setCookie)("edam_version", version);
       }
 
@@ -73915,6 +73916,7 @@ function interactive_edam_browser() {
   function loadCustomVersion() {
     $("#versionModal").modal('hide');
     var versionURL = document.getElementById('version_url').value;
+    console.log(versionURL);
     (0, _utils.setCookie)("edam_version", versionURL);
   }
 
@@ -74075,6 +74077,7 @@ function interactive_edam_browser() {
     var branch_of_term = get_branch_of_term(uri);
     (0, _utils.setCookie)("edam_browser_" + current_branch, uri);
     var version = (0, _utils.getCookie)("edam_version", 'stable');
+    console.log(version);
     var identifier = uri.substring(uri.lastIndexOf('/') + 1).replace(/[^a-zA-Z_0-9]/g, '-').toLowerCase().replace(/[-]+/g, '-');
     var params = "";
 
@@ -74901,4 +74904,4 @@ var updateBranch = function updateBranch(branch) {
 
 exports.updateBranch = updateBranch;
 },{"../jquery-import.js":"WZAb","popper.js":"v5IM","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","jquery-ui-bundle":"Hifx","bootstrap":"jv0N","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/tree-reusable-d3.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/index.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","d3":"BG5c","./tree-reusable-d3.js":"kypQ","ga-gtag":"IZXy","./utils.js":"MgTz","./tree-edam-stand-alone.js":"qsCb"}]},{},["QvaY"], null)
-//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.00e2edd5.js.map
+//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.eb094208.js.map
