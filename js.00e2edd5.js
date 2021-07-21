@@ -71830,6 +71830,7 @@ var interactive_tree = function interactive_tree() {
         var scale = d3.zoomTransform(svg.node()).k;
         var x = -((_elements$ = elements[0]) === null || _elements$ === void 0 ? void 0 : _elements$.y0);
         var y = -((_elements$2 = elements[0]) === null || _elements$2 === void 0 ? void 0 : _elements$2.x0);
+        if (!x || !y) return;
         x = x * scale + width / 2;
         y = y * scale + height / 2;
         var t = d3.zoomIdentity.translate(x, y).scale(scale);
@@ -74900,4 +74901,4 @@ var updateBranch = function updateBranch(branch) {
 
 exports.updateBranch = updateBranch;
 },{"../jquery-import.js":"WZAb","popper.js":"v5IM","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","jquery-ui-bundle":"Hifx","bootstrap":"jv0N","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/tree-reusable-d3.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/index.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","d3":"BG5c","./tree-reusable-d3.js":"kypQ","ga-gtag":"IZXy","./utils.js":"MgTz","./tree-edam-stand-alone.js":"qsCb"}]},{},["QvaY"], null)
-//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.757e04c4.js.map
+//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.00e2edd5.js.map
