@@ -2,7 +2,7 @@ import * as d3 from 'd3'
 import { getCookie, setCookie } from './utils.js';
 import { jsonTreeFromURL } from "edam2json-js";
 
-
+const defaultNode="http://edamontology.org/data_0006";
 /**
  * Build an interactive tree
  * @return {object} the tree
@@ -151,7 +151,6 @@ var interactive_tree = function() {
                 let y = -elements[0]?.x0;
                 if(!x||!y)
                     return
-
                 x= x*scale+width/2;
                 y = y*scale+height/2;
 
@@ -664,9 +663,15 @@ var interactive_tree = function() {
      * @return cmd() itself
      */
     cmd.selectElement = function (identifier, status, andExpand) {
+        //show a warning message
         var node=identifierToElement[identifier];
-        if (typeof node == "undefined")
-            return cmd;
+        if (typeof node == "undefined"){
+            let msg= "we couldn't find "+ identifier+ " in EDAM version: "+getCookie("edam_version","stable");
+            alert(msg);
+            //select default node
+            node =identifierToElement[defaultNode];
+            identifier=defaultNode;
+        }
         var source=getFartherAncestorCollapsed(node);
         if (status)
             browseToFromElement(identifier, root, true, typeof andExpand == "undefined" || andExpand);

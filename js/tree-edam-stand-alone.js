@@ -76,7 +76,6 @@ function interactive_edam_browser(){
         //setCookie("edam_browser_branch",branch);
         current_branch=branch;
         //get tree from cache (either same version or a subset request)
-        console.log(version)
         if(!version || version==getCookie("edam_version","stable" )){
             
             tree=JSON.parse(localStorage.getItem("current_edam"));
@@ -774,7 +773,7 @@ function interactive_edam_browser(){
             return __my_interactive_tree.identifierAccessor()(d) === getInitURI(current_branch);
         })
         .loadingDoneHandler(function(){
-            __my_interactive_tree.cmd.selectElement("http://edamontology.org/"+getInitURI(current_branch),true,true);
+            //__my_interactive_tree.cmd.selectElement("http://edamontology.org/"+getInitURI(current_branch),true,true);
             __my_interactive_tree.cmd.selectElement(getInitURI(current_branch),true,true);
             build_autocomplete_from_edam_browser(browser);
             setTimeout(function(){
