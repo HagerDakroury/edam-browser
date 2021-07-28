@@ -37,45 +37,37 @@
             </div>
         </div>
         <div>
-            <div id="edam-branches">
+            <div  class="btn-group id="edam-branches">
                 <div class="btn-group version-group">
                     <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
-                         <span class="selection version-title" style="padding-right:1px">1.25 (stable)  </span><span class="caret"></span>
+                         <span class="selection version-title" style="padding-right:4px">1.25 (stable)</span><span class="caret"></span>
                     </button>
                     <ul class="dropdown-menu" role="menu">
                     <li> 
-                        <a class="branch" onclick="browser.current_branch('edam','stable')"  >1.25 (stable) </a>
+                        <a class="branch" onclick="browser.current_branch('edam','stable')"  >1.25 (stable)</a>
                     </li>
                     <li>
-                        <a class="branch" onclick="browser.current_branch('edam','1.24')" >
-                            1.24
-                        </a>
+                        <a class="branch" onclick="browser.current_branch('edam','1.24')" >1.24</a>
                     </li>
                     <li>
-                        <a class="branch" onclick="browser.current_branch('edam','1.23')">
-                            1.23
-                        </a>
+                        <a class="branch" onclick="browser.current_branch('edam','1.23')">1.23</a>
                     </li>
                     <li role="separator" class="divider"></li>
                     <li>
-                        <a class="branch" onclick="browser.current_branch('edam','latest')">
-                            latest (unstable)
-                        </a>
+                        <a class="branch" onclick="browser.current_branch('edam','latest')">latest (unstable)</a>
                     </li>
                     <li>
-                        <a class="branch" onclick="triggerVersion()">
-                            Custom Version
-                        </a>
+                        <a class="branch" onclick="triggerVersion()">Custom Version</a>
                     </li>    
 
                     </ul>
                 </div>
                 <div class="btn-group branch-group">
                     <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
-                         <span class="selection branch-title" style="padding-right:1px">All EDAM </span><span class="caret"></button>
+                         <span class="selection branch-title" style="padding-right:4px">All EDAM</span><span class="caret"></button>
                     <ul class="dropdown-menu" role="menu">
                     <li>
-                        <a class="branch" onclick="browser.current_branch('edam')">All EDAM </a>
+                        <a class="branch" onclick="browser.current_branch('edam')">All EDAM</a>
                     </li>
                     <li role="separator" class="divider"></li>
                     <li>
@@ -108,11 +100,11 @@
                     </li>
                     </ul>
                 </div>
-                <button type="button"
+                 <!-- <button type="button"
                    class="btn btn-default branch custom custom_url custom_file"
                    title="Load a custom ontology"
                    onclick="browser.cmd.selectCustom()"
-                >Custom</button>
+                >Custom</button> -->
             </div>
         </div>
         <div>
