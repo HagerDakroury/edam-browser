@@ -74863,10 +74863,6 @@ window.onload = function () {
       });
     }
   });
-  $(".dropdown-menu li a").click(function () {
-    $(this).parents(".btn-group").find('.selection').text($(this).text());
-    $(this).parents(".btn-group").find('.selection').val($(this).text());
-  });
 
   window.triggerVersion = function () {
     $("#versionModal").modal('show');
@@ -74923,4 +74919,4 @@ var updateBranch = function updateBranch(branch) {
 
 exports.updateBranch = updateBranch;
 },{"../jquery-import.js":"WZAb","popper.js":"v5IM","jquery-ui-themes/themes/smoothness/jquery-ui.css":"AC2V","jquery-ui-bundle":"Hifx","bootstrap":"jv0N","bootstrap/dist/css/bootstrap.css":"gsgA","@fortawesome/fontawesome-free/css/all.css":"Eofe","../css/bootstrap.xl.css":"ju9n","../css/tree-reusable-d3.css":"ju9n","../css/autocomplete-edam-reusable.css":"ju9n","../css/index.css":"ju9n","../css/edam.css":"ju9n","../css/dark-theme.css":"ju9n","regenerator-runtime/runtime":"KA2S","d3":"BG5c","./tree-reusable-d3.js":"kypQ","ga-gtag":"IZXy","./utils.js":"MgTz","./tree-edam-stand-alone.js":"qsCb"}]},{},["QvaY"], null)
-//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.cd8b104d.js.map
+//# sourceMappingURL=https://hagerdakroury.github.io/edam-browser/js.686ba546.js.map
